@@ -115,7 +115,7 @@ button, input, select { font: inherit; color: inherit; }
 
 .line {
   display: grid;
-  grid-template-columns: 52px 88px 1fr auto;
+  grid-template-columns: 52px 1fr auto;
   align-items: start;
   gap: 12px;
   padding: 10px 12px;
@@ -123,11 +123,19 @@ button, input, select { font: inherit; color: inherit; }
 }
 .line:hover { background: var(--hover); }
 
+/* Row actions appear only for the row being pointed at (or focused); touch screens have no hover, so they always show. */
+.line-actions { display: flex; gap: 2px; visibility: hidden; }
+.line:hover .line-actions,
+.line:focus-within .line-actions { visibility: visible; }
+@media (hover: none) {
+  .line-actions { visibility: visible; }
+}
+
 .line-id {
   font: 12px/1.9 ui-monospace, Consolas, monospace;
   color: var(--muted);
 }
-.line-speaker { font-weight: 600; color: var(--other); overflow-wrap: anywhere; }
+.line-speaker { font-weight: 600; color: var(--other); }
 .speaker-leon .line-speaker { color: var(--leon); }
 .speaker-ada .line-speaker { color: var(--ada); }
 .speaker-narrator .line-speaker,
@@ -430,10 +438,9 @@ textarea.text-input { resize: vertical; min-width: 0; font: inherit; }
 }
 
 @media (max-width: 560px) {
-  .line { grid-template-columns: 44px 1fr auto; }
-  .line-text { grid-column: 2 / 3; }
-  .line-speaker { grid-column: 2 / 3; }
-  .actions, .confirm { grid-column: 3; grid-row: 1; }
+  /* Four icons would squeeze the text, so they move under it. */
+  .line { grid-template-columns: 44px 1fr; }
+  .line-actions, .line .confirm { grid-column: 2; justify-content: flex-end; }
 }
 
 /* Cast management: button pushed to the right end of the scene header. */

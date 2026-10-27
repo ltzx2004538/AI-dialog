@@ -3,20 +3,28 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from '../translation/index.jsx';
 import IconButton from './IconButton.jsx';
 
-const EMPTY = { name: '', personality: '', source: '' };
+const EMPTY = { name: '', cnName: '', personality: '', source: '' };
 
-// Name + personality + source inputs, shared by the add form and the per-character edit form.
+// Name + Chinese name + personality + source inputs, shared by the add form and the per-character edit form.
 function CharacterFields({ value, onChange, autoFocus }) {
   const { t } = useTranslation();
   return (
     <>
-      <input
-        className="text-input"
-        autoFocus={autoFocus}
-        placeholder={t('characters.namePlaceholder')}
-        value={value.name}
-        onChange={(e) => onChange({ ...value, name: e.target.value })}
-      />
+      <div className="character-names">
+        <input
+          className="text-input"
+          autoFocus={autoFocus}
+          placeholder={t('characters.namePlaceholder')}
+          value={value.name}
+          onChange={(e) => onChange({ ...value, name: e.target.value })}
+        />
+        <input
+          className="text-input"
+          placeholder={t('characters.cnNamePlaceholder')}
+          value={value.cnName}
+          onChange={(e) => onChange({ ...value, cnName: e.target.value })}
+        />
+      </div>
       <textarea
         className="text-input character-notes-input"
         rows={2}
@@ -35,7 +43,7 @@ function CharacterFields({ value, onChange, autoFocus }) {
   );
 }
 
-// Manage this scene's cast: characters are { name, personality, source }.
+// Manage this scene's cast: characters are { name, cnName, personality, source }.
 // Each handler returns a promise; failures are shown inside the dialog.
 // lineCounts: { [name]: number of lines in this scene } — deleting a character deletes those lines, so it asks first.
 export default function CharactersDialog({ characters, lineCounts, onAdd, onUpdate, onDelete, onClose }) {
@@ -109,8 +117,10 @@ export default function CharactersDialog({ characters, lineCounts, onAdd, onUpda
   // One character: the edit form while editing it, otherwise name / line count / actions, delete confirmation,
   // personality and source.
   function renderCharRow(character) {
-    const { name, personality, source } = character;
+    const { name, cnName, personality, source } = character;
     const count = lineCounts[name] || 0;
+    let displayName = name;
+    if (cnName) displayName = `${name} · ${cnName}`;
 
     if (editing === name) {
       return (
@@ -153,7 +163,7 @@ export default function CharactersDialog({ characters, lineCounts, onAdd, onUpda
       <div>
         <div className="character-summary">
           <div className="character-info">
-            <span className="character-name">{name}</span>
+            <span className="character-name">{displayName}</span>
             <span className="count">{t('scene.lineCount', { count })}</span>
           </div>
           <div className="character-actions">

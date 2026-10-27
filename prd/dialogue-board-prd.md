@@ -63,7 +63,7 @@
   - 原剧本参考是多行文字：可以粘贴这一段的原台词（建议一行一句"说话人: 台词"），也可以只填剧本网页链接。
   - 润色和 AI 预测时自动作为参考资料发给 LLM（粘贴的文字排在最前面，链接和额外要求里的链接一起读取，合计最多 3 个），不用每次在额外要求里贴链接。读取结果里显示为"原剧本参考"。
   - 打开"优先使用参考里的原台词"时，AI 预测会在原文里找到当前位置，直接按顺序取后面的台词。
-- 按添加顺序显示该场景的台词，每行显示：**ID**、**说话人**、**中文台词**及其下方的**英文台词**（灰色小字；哪种语言为空就不显示）、行尾的**铅笔图标**。
+- 按添加顺序显示该场景的台词，每行显示：**ID**，然后是"中文名：中文台词"，下面一行是"英文名: 英文台词"（灰色小字）。例如"里昂：……"和"Leon: ……"。哪种语言为空就不显示那一行。人物的中文名在登场人物里设置，没填时用英文名；旁白和背景显示为"旁白 / Narrator""背景介绍 / Background"。
 - Leon、Ada 和其他角色的说话人名字用不同颜色区分。
 - 场景没有台词时显示提示文案。
 - 场景不存在（例如已删除或编号写错）时，显示"找不到这个场景"和返回链接。
@@ -82,8 +82,9 @@
 #### 5.3.1 管理登场人物
 
 - 场景页标题行最右边（`justify-content: flex-end`）有"管理登场人物"按钮，点击弹出窗口。
-- **每个场景有自己的人物名单**，存在该场景的 `characters` 数组里，每个人物是 `{ name, personality, source }`。新建场景时名单为 Leon、Ada、Claire、Chris、Jill、Wesker、Sherry、Ashley、Luis、Hunnigan、Krauser。
-- 每个人物有两个可选属性：
+- **每个场景有自己的人物名单**，存在该场景的 `characters` 数组里，每个人物是 `{ name, cnName, personality, source }`。新建场景时名单为 Leon、Ada、Claire、Chris、Jill、Wesker、Sherry、Ashley、Luis、Hunnigan、Krauser。
+- 每个人物除了名字（英文），还有三个可选属性：
+  - **中文名（`cnName`）**：显示在中文台词前面，也会发给 LLM，让中文台词用同一个译名。
   - **性格（`personality`）**：性格特点、说话方式。润色和预测时，场景里出场人物的性格都会发给 LLM（润色时目标说话人排在最前）。
   - **台词参考（`source`）**：和场景的原剧本参考一样，可以粘贴这个人物以前的台词，也可以填台词页面链接（例如 Fandom 的 quotes 页面）。润色时只带目标说话人的；预测时带本场景已经说过话的人物的。粘贴的文字直接作为参考，链接和"额外要求"、原剧本参考里的链接一起抓取（额外要求优先，合计最多 3 个）。读取结果里显示为"某某 的台词参考"。
   - 旧数据里的人物设定（`notes`）自动拆分：其中的链接放进台词参考，其余文字放进性格。
@@ -103,7 +104,11 @@
 
 ### 5.4 编辑 / 删除台词
 
-- 点击铅笔图标，弹出菜单：**润色**（背景介绍没有）、**编辑**、**删除**。点击菜单以外的地方会关闭菜单。
+- 鼠标移到某一行时，行尾出现四个图标（平时隐藏；用键盘聚焦这一行时也会出现；触屏设备上一直显示；窄屏时放在台词下方）：
+  - **齿轮**：编辑；
+  - **铅笔**：润色（背景介绍没有）；
+  - **复制**：把这句的中英文（带说话人名，格式同上）复制到剪贴板，图标短暂变成对勾表示已复制；
+  - **垃圾桶**：删除。
 - **编辑**：这一行变成编辑状态，可以修改说话人（同样是下拉列表）、中文和英文（至少填一种）。点"保存"或按回车保存，点"取消"或按 Esc 放弃修改。**ID 和所属场景保持不变。**
 - **删除**：行内出现"删除这句？"的确认，点"删除"确认、点"取消"放弃。删除后这个 ID 不会再分配给新台词。
 
@@ -201,8 +206,8 @@
       "source": "Ada: ……
 Leon: ……",
       "characters": [
-        { "name": "Leon", "personality": "", "source": "" },
-        { "name": "Ada", "personality": "冷静、神秘", "source": "https://residentevil.fandom.com/wiki/Ada_Wong/quotes" }
+        { "name": "Leon", "cnName": "里昂", "personality": "", "source": "" },
+        { "name": "Ada", "cnName": "艾达", "personality": "冷静、神秘", "source": "https://residentevil.fandom.com/wiki/Ada_Wong/quotes" }
       ]
     }
   ],
@@ -227,9 +232,9 @@ Leon: ……",
 | POST | `/api/scenes` | 新建场景，body：`{ name, source? }` |
 | PUT | `/api/scenes/:id` | 修改场景名和原剧本参考，body：`{ name, source? }`（不带 `source` 时保留原来的），ID 不变 |
 | DELETE | `/api/scenes/:id` | 删除场景及其全部台词 |
-| GET | `/api/scenes/:id/characters` | 该场景的人物名单 `[{ name, personality, source }]`（`GET /api/scenes` 返回的场景里也带着） |
-| POST | `/api/scenes/:id/characters` | 添加人物，body：`{ name, personality?, source? }`；重名（不区分大小写）或保留名返回 400；返回新名单 |
-| PUT | `/api/scenes/:id/characters/:name` | 修改，body：`{ name, personality?, source? }`；改名时该场景台词的说话人同步修改；返回新名单 |
+| GET | `/api/scenes/:id/characters` | 该场景的人物名单 `[{ name, cnName, personality, source }]`（`GET /api/scenes` 返回的场景里也带着） |
+| POST | `/api/scenes/:id/characters` | 添加人物，body：`{ name, cnName?, personality?, source? }`；重名（不区分大小写）或保留名返回 400；返回新名单 |
+| PUT | `/api/scenes/:id/characters/:name` | 修改，body：`{ name, cnName?, personality?, source? }`；改名时该场景台词的说话人同步修改；返回新名单 |
 | DELETE | `/api/scenes/:id/characters/:name` | 删除人物，同时删除该人物在本场景的台词（前端先确认）；返回新名单 |
 | GET | `/api/lines` | 获取全部台词（每句带 `sceneId`） |
 | POST | `/api/lines` | 新增台词，body：`{ sceneId, speaker, cn, en }`（`cn` / `en` 至少一个），场景不存在时返回 400 |
@@ -278,7 +283,7 @@ Leon: ……",
 - [x] 长参考页面会截取与场景匹配的段落；打开"优先使用参考里的原台词"后能还原原文（已用 RE4 transcript 验证：Ada "Wouldn't make me use this…" 之后预测出 Leon "Well after six years, that is one hell of a greeting… Ada."）。
 - [x] 台词列表末尾有"AI 预测"按钮，可选择预测 1～10 句并填写额外要求；结果可勾选后按顺序添加到场景（已用 Gemini 验证）。
 - [x] 首页场景卡片显示台词数量和人物数量。
-- [x] 每句台词右侧有铅笔图标，点击后可以选择编辑或删除。
+- [x] 鼠标移到台词上时出现编辑、润色、复制、删除四个图标。
 - [x] 编辑后 ID 不变；删除需要确认；删除后编号不会被复用。
 - [x] 重启服务后数据仍在。
 - [x] 右上角可以切换中文 / 英文界面，刷新后保持选择。

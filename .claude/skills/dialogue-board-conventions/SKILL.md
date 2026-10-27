@@ -40,6 +40,7 @@ client/
 | --- | --- |
 | `AppLayout` | 所有页面共用的外框：标题（回首页）+ 语言切换 + `<Outlet />` |
 | `IconButton` | 只有图标的按钮，props：`icon`（`'pencil'` / `'bin'`…）、`label`（无障碍名称和提示）、`onClick`、`danger`。现有 `pencil` / `bin` / `gear`，新图标加到它的 `ICONS` 里，**不要再单独写图标组件** |
+| `LineItem` | 一句台词：ID、"中文名：中文" / "英文名: 英文"（名字来自 `speakers.js` 的 `speakerNames(speaker, cnNames)`），行尾齿轮（编辑）、铅笔（润色）、复制、垃圾桶（删除）四个图标，只在悬停 / 聚焦这一行时显示 |
 | `ActionMenu` | 铅笔图标 + 下拉菜单，传 `items: [{ label, onClick, danger }]` |
 | `TextInputDialog` | 输入一个文本的弹窗（首页重命名场景用它） |
 | `SceneDialog` | 场景名 + 原剧本参考（`source`）的弹窗：首页新建场景、场景页标题旁的齿轮按钮编辑场景都用它 |
@@ -118,10 +119,10 @@ client/
 
 ## 6. 后端与数据
 
-- 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, personality, source }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
+- 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, cnName, personality, source }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
 - 接口统一在 `/api` 下，REST 风格：`/api/scenes`、`/api/scenes/:id`、`/api/lines`、`/api/lines/:id`、`/api/scenes/:id/characters`、`/api/scenes/:id/characters/:name`（GET / POST / PUT / DELETE）。
-- 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, personality, source }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
-- 人物是 `{ name, personality, source }`：`personality` 是性格和说话方式，`server/prompt.js` 的 `characterNotes()` 把出场人物的性格放进提示词（润色时目标说话人在前）；`source` 是台词参考（粘贴的台词和/或链接），用法同场景的 `source`：润色只带目标说话人的，预测带已出场人物的，作为 `loadReferences()` 的 `pasted` 项（`{ text, name }`，排在场景 `source` 之后），其中的链接和额外要求里的一起抓取（额外要求优先）。旧的 `notes` 在 `server.js` 的 `migrateCharacter()` 里拆成链接 → `source`、其余 → `personality`。
+- 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, cnName, personality, source }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
+- 人物是 `{ name, cnName, personality, source }`：`cnName` 是中文名（可空，显示时退回 `name`），显示在中文台词前，也放进提示词；`personality` 是性格和说话方式，`server/prompt.js` 的 `characterNotes()` 把出场人物的性格放进提示词（润色时目标说话人在前）；`source` 是台词参考（粘贴的台词和/或链接），用法同场景的 `source`：润色只带目标说话人的，预测带已出场人物的，作为 `loadReferences()` 的 `pasted` 项（`{ text, name }`，排在场景 `source` 之后），其中的链接和额外要求里的一起抓取（额外要求优先）。旧的 `notes` 在 `server.js` 的 `migrateCharacter()` 里拆成链接 → `source`、其余 → `personality`。
 - `source`（场景的原剧本参考，粘贴的原台词和/或链接）：润色和预测都把它交给 `loadReferences(text, focus, maxChars, pasted)`，去掉链接后的文字作为 `{ url: '', pasted: true }` 排在最前面，其中的链接和额外要求里的一起抓取（额外要求优先）。`PUT /api/scenes/:id` 不带 `source` 时保留原值（首页重命名只发 `name`）；`load()` 给旧场景补上空的 `source`。
 - `preferOriginal`（润色 / 预测请求可带）：`referenceBlock(references, preferOriginal)` 改为要求模型直接使用参考里的原台词；默认的风格参考模式下仍禁止照抄。预测时如果参考里找到了当前场景（`anchor`），`predict.js` 的 `originalLines()` 直接从剧本里按顺序取后面的"说话人: 台词"作为英文（遇到本场景人物以外的说话人就停），模型只负责翻译中文（`translateLines()`）；找不到时才让模型自己写。
 - 提示词顺序：参考资料（可能很长）和人物设定放在最前面，场景台词放在后面，最后才是要完成的任务（润色的目标句 / 预测的"最后一句是……，新的一句必须接住它"），让模型最后读到的是要接的台词。

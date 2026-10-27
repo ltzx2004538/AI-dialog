@@ -78,10 +78,11 @@ export default function ScenePage() {
   const scene = scenes?.find((s) => s.id === sceneId);
   const sceneLines = useMemo(() => lines.filter((l) => l.sceneId === sceneId), [lines, sceneId]);
 
-  // The cast belongs to the scene: scene.characters is [{ name, personality, source }].
+  // The cast belongs to the scene: scene.characters is [{ name, cnName, personality, source }].
   const characters = scene?.characters || [];
   const speakers = useMemo(() => characters.map((c) => c.name), [characters]);
   const speakerProps = { speakers };
+  const cnNames = useMemo(() => Object.fromEntries(characters.map((c) => [c.name, c.cnName])), [characters]);
 
   const lineCounts = useMemo(() => {
     const counts = {};
@@ -261,6 +262,7 @@ export default function ScenePage() {
             key={line.id}
             line={line}
             speakerProps={speakerProps}
+            cnNames={cnNames}
             refineProps={refineProps}
             onUpdate={handleUpdate}
             onDelete={handleDelete}

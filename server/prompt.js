@@ -31,15 +31,21 @@ function sceneScript(sceneLines, markId) {
     .join('\n');
 }
 
-// Personality of the given characters in that order; characters without one are left out.
+// Chinese name and personality of the given characters in that order; characters with neither are left out.
 // highlight: name labelled "(target speaker)".
 function characterNotes(scene, names, highlight) {
   const entries = [...new Set(names)]
     .map((name) => scene.characters.find((c) => c.name === name))
-    .filter((c) => c?.personality)
-    .map((c) => `- ${c.name}${c.name === highlight ? ' (target speaker)' : ''}: ${c.personality}`);
+    .filter((c) => c?.personality || c?.cnName)
+    .map((c) => {
+      const label = [c.cnName && `Chinese name: ${c.cnName}`, c.name === highlight && 'target speaker'].filter(Boolean).join(', ');
+      return `- ${c.name}${label ? ` (${label})` : ''}: ${c.personality || '(no personality given)'}`;
+    });
   if (!entries.length) return '';
-  return `Character personalities from the writer (traits, voice; keep every line consistent with them):\n${entries.join('\n')}`;
+  return [
+    'Characters from the writer (traits and voice: keep every line consistent with them; use their Chinese name in Chinese text):',
+    ...entries,
+  ].join('\n');
 }
 
 function referenceTag(r) {
