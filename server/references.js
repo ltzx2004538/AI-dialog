@@ -135,15 +135,18 @@ function excerpt(text, focus, maxChars) {
   return { text: text.slice(from, to), total, from, to, mode: 'match', anchor: anchor - from };
 }
 
-// Returns [{ url, ok, pasted?, text?, total?, from?, to?, mode?, anchor?, error? }] for every URL found in the text.
+// Returns [{ url, ok, pasted?, name?, text?, total?, from?, to?, mode?, anchor?, error? }] for every URL found in the text.
 // focus: recent scene lines (most recent first), used to pick the matching part of long pages.
 // maxChars: per-model limit from referenceLimit(); missing means REFERENCE_MAX_CHARS.
-// pasted: the scene's source; its text without links comes first as { url: '', pasted: true }, since it is the scene itself.
-async function loadReferences(text, focus = [], maxChars = MAX_CHARS, pasted = '') {
-  const results = await Promise.all(extractUrls(text || '').map(fetchReference));
-  const inline = pasted.replace(URL_PATTERN, '').trim();
-  if (inline) results.unshift({ url: '', pasted: true, ok: true, text: inline });
-  return results.map((r) => (r.ok ? { ...r, ...excerpt(r.text, focus, maxChars) } : r));
+// pasted: [{ text, name? }] sources typed into the app (the scene's, then characters' with their name). Their text without
+// links comes first as { url: '', pasted: true, name }, in that order: the scene's own script is the closest match.
+async function loadReferences(text, focus = [], maxChars = MAX_CHARS, pasted = []) {
+  const fetched = await Promise.all(extractUrls(text || '').map(fetchReference));
+  const typed = pasted
+    .map(({ text: source, name }) => ({ name, text: (source || '').replace(URL_PATTERN, '').trim() }))
+    .filter((p) => p.text)
+    .map((p) => ({ url: '', pasted: true, name: p.name, ok: true, text: p.text }));
+  return [...typed, ...fetched].map((r) => (r.ok ? { ...r, ...excerpt(r.text, focus, maxChars) } : r));
 }
 
 module.exports = { loadReferences };

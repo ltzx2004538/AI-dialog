@@ -1,10 +1,10 @@
-// Prompt pieces shared by refine.js and predict.js. Both start from the re-dialogue-refiner skill,
+// Prompt pieces shared by refine.js and predict.js. Both start from the dialogue-refiner skill,
 // so the app and the chat follow the same voice rules.
 const fs = require('fs');
 const path = require('path');
 const { httpError } = require('./llm.js');
 
-const SKILL_FILE = path.join(__dirname, '..', '.claude', 'skills', 're-dialogue-refiner', 'SKILL.md');
+const SKILL_FILE = path.join(__dirname, '..', '.claude', 'skills', 'dialogue-refiner', 'SKILL.md');
 
 // Special speakers; keep in sync with client/src/service/speakers.js and SPECIAL_SPEAKERS in server.js.
 const BACKGROUND = 'Background';
@@ -31,18 +31,19 @@ function sceneScript(sceneLines, markId) {
     .join('\n');
 }
 
-// Notes of the given characters in that order; characters without notes are left out.
+// Personality of the given characters in that order; characters without one are left out.
 // highlight: name labelled "(target speaker)".
 function characterNotes(scene, names, highlight) {
   const entries = [...new Set(names)]
     .map((name) => scene.characters.find((c) => c.name === name))
-    .filter((c) => c?.notes)
-    .map((c) => `- ${c.name}${c.name === highlight ? ' (target speaker)' : ''}: ${c.notes}`);
+    .filter((c) => c?.personality)
+    .map((c) => `- ${c.name}${c.name === highlight ? ' (target speaker)' : ''}: ${c.personality}`);
   if (!entries.length) return '';
-  return `Character notes from the writer (personality, voice; keep every line consistent with them):\n${entries.join('\n')}`;
+  return `Character personalities from the writer (traits, voice; keep every line consistent with them):\n${entries.join('\n')}`;
 }
 
 function referenceTag(r) {
+  if (r.pasted && r.name) return `<reference source="past lines of ${r.name} pasted by the writer">`;
   if (r.pasted) return '<reference source="scene script pasted by the writer">';
   if (r.mode === 'match') {
     return `<reference url="${r.url}" excerpt="characters ${r.from}-${r.to} of ${r.total}, cut around the part matching the current scene">`;
@@ -92,8 +93,8 @@ function referenceBlock(references, preferOriginal) {
 
 // What the client sees about references: which URLs were read and how much was used, never their text.
 function publicReferences(references) {
-  return references.map(({ url, ok, pasted, text, total, mode, error }) =>
-    ok ? { url, ok, pasted, chars: text.length, total, mode } : { url, ok, error }
+  return references.map(({ url, ok, pasted, name, text, total, mode, error }) =>
+    ok ? { url, ok, pasted, name, chars: text.length, total, mode } : { url, ok, error }
   );
 }
 

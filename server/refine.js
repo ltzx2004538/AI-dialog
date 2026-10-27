@@ -1,4 +1,4 @@
-// Builds the refine prompt from the re-dialogue-refiner skill, so the app and the chat follow the same rules.
+// Builds the refine prompt from the dialogue-refiner skill, so the app and the chat follow the same rules.
 const { chat, httpError, referenceLimit } = require('./llm.js');
 const { loadReferences } = require('./references.js');
 const {
@@ -59,20 +59,20 @@ function parseVersions(content, count) {
 
 // Resolves to { versions, references } where references reports which URLs were read (without their text).
 // scene.source (the scene's original script) is always a reference; its links come after the instruction's own.
-// scene.characters: [{ name, notes }]. Links in the target speaker's notes are fetched too, after those
-// (other characters' notes are sent as text only, so they don't use up the reference limit).
+// scene.characters: [{ name, personality, source }]. The target speaker's source is a reference too, after those
+// (other characters' sources are left out, so they don't use up the reference limit; their personality is still sent).
 // preferOriginal: use the references' own lines when they contain this moment.
 async function refineLine({ scene, sceneLines, target, instruction, styles, llmId, preferOriginal }) {
   if (target.speaker === BACKGROUND) throw httpError(400, 'Background lines are added as-is and never refined');
-  const notes = scene.characters.find((c) => c.name === target.speaker)?.notes;
+  const speaker = scene.characters.find((c) => c.name === target.speaker);
   // Long reference pages are cut around the target and the lines next to it.
   const index = sceneLines.findIndex((l) => l.id === target.id);
   const focus = [target, sceneLines[index - 1], sceneLines[index + 1]].filter(Boolean).flatMap((l) => [l.en, l.cn]);
   const references = await loadReferences(
-    [instruction, scene.source, notes].filter(Boolean).join('\n'),
+    [instruction, scene.source, speaker?.source].filter(Boolean).join('\n'),
     focus,
     referenceLimit(llmId),
-    scene.source
+    [{ text: scene.source }, { text: speaker?.source, name: speaker?.name }]
   );
   const content = await chat(
     [

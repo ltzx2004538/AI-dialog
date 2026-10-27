@@ -14,7 +14,7 @@ export const createScene = (scene) => request('POST', '/api/scenes', scene);
 export const updateScene = (id, scene) => request('PUT', `/api/scenes/${encodeURIComponent(id)}`, scene);
 export const deleteScene = (id) => request('DELETE', `/api/scenes/${encodeURIComponent(id)}`);
 
-// Each scene has its own characters ({ name, notes }), returned with the scene; each call resolves to the scene's updated cast.
+// Each scene has its own characters ({ name, personality, source }), returned with the scene; each call resolves to the scene's updated cast.
 const charactersUrl = (sceneId, name) =>
   `/api/scenes/${encodeURIComponent(sceneId)}/characters${name ? `/${encodeURIComponent(name)}` : ''}`;
 export const createCharacter = (sceneId, character) => request('POST', charactersUrl(sceneId), character);

@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from '../translation/index.jsx';
 import IconButton from './IconButton.jsx';
 
-const EMPTY = { name: '', notes: '' };
+const EMPTY = { name: '', personality: '', source: '' };
 
-// Name + notes inputs, shared by the add form and the per-character edit form.
+// Name + personality + source inputs, shared by the add form and the per-character edit form.
 function CharacterFields({ value, onChange, autoFocus }) {
   const { t } = useTranslation();
   return (
@@ -19,16 +19,23 @@ function CharacterFields({ value, onChange, autoFocus }) {
       />
       <textarea
         className="text-input character-notes-input"
+        rows={2}
+        placeholder={t('characters.personalityPlaceholder')}
+        value={value.personality}
+        onChange={(e) => onChange({ ...value, personality: e.target.value })}
+      />
+      <textarea
+        className="text-input character-notes-input"
         rows={3}
-        placeholder={t('characters.notesPlaceholder')}
-        value={value.notes}
-        onChange={(e) => onChange({ ...value, notes: e.target.value })}
+        placeholder={t('characters.sourcePlaceholder')}
+        value={value.source}
+        onChange={(e) => onChange({ ...value, source: e.target.value })}
       />
     </>
   );
 }
 
-// Manage the cast shared by all scenes: characters are { name, notes }.
+// Manage this scene's cast: characters are { name, personality, source }.
 // Each handler returns a promise; failures are shown inside the dialog.
 // lineCounts: { [name]: number of lines in this scene } — deleting a character deletes those lines, so it asks first.
 export default function CharactersDialog({ characters, lineCounts, onAdd, onUpdate, onDelete, onClose }) {
@@ -99,9 +106,10 @@ export default function CharactersDialog({ characters, lineCounts, onAdd, onUpda
     else onClose();
   }
 
-  // One character: the edit form while editing it, otherwise name / line count / actions, delete confirmation and notes.
+  // One character: the edit form while editing it, otherwise name / line count / actions, delete confirmation,
+  // personality and source.
   function renderCharRow(character) {
-    const { name, notes } = character;
+    const { name, personality, source } = character;
     const count = lineCounts[name] || 0;
 
     if (editing === name) {
@@ -131,12 +139,15 @@ export default function CharactersDialog({ characters, lineCounts, onAdd, onUpda
       );
     }
 
-    let notesClass = 'character-notes';
-    let notesText = notes;
-    if (!notes) {
-      notesClass = 'character-notes empty-notes';
-      notesText = t('characters.noNotes');
+    let personalityClass = 'character-notes';
+    let personalityText = personality;
+    if (!personality) {
+      personalityClass = 'character-notes empty-notes';
+      personalityText = t('characters.noPersonality');
     }
+
+    let sourceLine = null;
+    if (source) sourceLine = <p className="character-notes character-source">{t('characters.sourceShown', { source })}</p>;
 
     return (
       <div>
@@ -151,7 +162,8 @@ export default function CharactersDialog({ characters, lineCounts, onAdd, onUpda
           </div>
         </div>
         {confirm}
-        <p className={notesClass}>{notesText}</p>
+        <p className={personalityClass}>{personalityText}</p>
+        {sourceLine}
       </div>
     );
   }

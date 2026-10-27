@@ -14,7 +14,7 @@
 - **预测日志**：每次预测都会记录到 `logs/predict.jsonl`，方便分析结果为什么不对。只保留最近 100 条。
 - **界面语言**：可以切换中文和英文。
 
-润色和预测使用的规则来自 `.claude/skills/re-dialogue-refiner/SKILL.md`。这份 skill 同时也给 Claude Code 使用，所以网页和对话里的润色规则是一致的。想写别的角色或别的风格，改这份 skill 就行，不用改代码。
+润色和预测使用的规则来自 `.claude/skills/dialogue-refiner/SKILL.md`。这份 skill 同时也给 Claude Code 使用，所以网页和对话里的润色规则是一致的。想写别的角色或别的风格，改这份 skill 就行，不用改代码。
 
 ## 环境要求
 
@@ -99,7 +99,7 @@ server.js          后端入口（Node 原生 http）：/api 接口、托管 dis
 server/            LLM 客户端、提示词、润色、预测、参考资料抓取、预测日志
 client/            前端（React + Vite）：page/ 页面、component/ 组件、service/ 请求与工具、translation/ 中英文案
 prd/               产品需求文档
-.claude/skills/    re-dialogue-refiner（润色规则）、dialogue-board-conventions（代码规范）
+.claude/skills/    dialogue-refiner（润色规则）、dialogue-board-conventions（代码规范）
 ```
 
 修改代码前请先阅读 `.claude/skills/dialogue-board-conventions/SKILL.md` 里的代码规范；详细的功能说明见 `prd/dialogue-board-prd.md`。

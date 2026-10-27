@@ -2,7 +2,7 @@ import { useTranslation } from '../translation/index.jsx';
 
 // Which reference links the server read for an AI request:
 // references = [{ url, ok, pasted?, chars?, total?, mode?: 'full' | 'match' | 'head', error? }].
-// pasted: the text pasted into the scene's source, which has no URL.
+// pasted: text typed into a source, which has no URL: the scene's, or a character's (name set).
 export default function ReferenceList({ references }) {
   const { t } = useTranslation();
 
@@ -25,9 +25,10 @@ export default function ReferenceList({ references }) {
     let className = '';
     if (ref.mode === 'head') className = 'partial';
     let name = ref.url;
-    if (ref.pasted) name = t('reference.pasted');
+    if (ref.pasted && ref.name) name = t('reference.characterPasted', { name: ref.name });
+    else if (ref.pasted) name = t('reference.pasted');
     return (
-      <li key={ref.url || 'pasted'} className={className}>
+      <li key={ref.url || `pasted-${ref.name || ''}`} className={className}>
         <span className="refine-reference-url">{name}</span>
         <span>{readText(ref)}</span>
       </li>

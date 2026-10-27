@@ -14,7 +14,7 @@ server.js                 // 后端入口：Node 原生 http，路由 /api、托
 server/                   // 后端模块：llm.js（OpenAI 兼容接口客户端）、prompt.js（润色和预测共用的提示词工具：读 skill、场景台词、人物设定、参考资料、解析 JSON）、refine.js（润色）、predict.js（AI 预测后续台词）、predictLog.js（预测日志）、styles.js（读写 styles.json）、references.js（抓取额外要求里的参考链接）
 .env / .env.example       // LLM 配置（.env 不提交；新增配置项要同步写进 .env.example）
 dialogue.json             // 台词数据（运行时生成，不要手动改结构）
-styles.json               // 润色的三个风格（网页 /styles 页面和 re-dialogue-refiner skill 共用）
+styles.json               // 润色的三个风格（网页 /styles 页面和 dialogue-refiner skill 共用）
 vite.config.js            // root = client，构建输出到 dist/
 prd/                      // 产品需求文档
 client/
@@ -118,10 +118,10 @@ client/
 
 ## 6. 后端与数据
 
-- 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, notes }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
+- 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, personality, source }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
 - 接口统一在 `/api` 下，REST 风格：`/api/scenes`、`/api/scenes/:id`、`/api/lines`、`/api/lines/:id`、`/api/scenes/:id/characters`、`/api/scenes/:id/characters/:name`（GET / POST / PUT / DELETE）。
-- 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, notes }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
-- `notes` 是写作者写的人物设定（可含链接）：润色时 `server/prompt.js` 的 `characterNotes()` 把场景里所有出场人物的 `notes` 放进提示词（目标说话人在前）；只有目标说话人 `notes` 里的链接和额外要求里的一起交给 `loadReferences()`（额外要求优先）。
+- 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, personality, source }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
+- 人物是 `{ name, personality, source }`：`personality` 是性格和说话方式，`server/prompt.js` 的 `characterNotes()` 把出场人物的性格放进提示词（润色时目标说话人在前）；`source` 是台词参考（粘贴的台词和/或链接），用法同场景的 `source`：润色只带目标说话人的，预测带已出场人物的，作为 `loadReferences()` 的 `pasted` 项（`{ text, name }`，排在场景 `source` 之后），其中的链接和额外要求里的一起抓取（额外要求优先）。旧的 `notes` 在 `server.js` 的 `migrateCharacter()` 里拆成链接 → `source`、其余 → `personality`。
 - `source`（场景的原剧本参考，粘贴的原台词和/或链接）：润色和预测都把它交给 `loadReferences(text, focus, maxChars, pasted)`，去掉链接后的文字作为 `{ url: '', pasted: true }` 排在最前面，其中的链接和额外要求里的一起抓取（额外要求优先）。`PUT /api/scenes/:id` 不带 `source` 时保留原值（首页重命名只发 `name`）；`load()` 给旧场景补上空的 `source`。
 - `preferOriginal`（润色 / 预测请求可带）：`referenceBlock(references, preferOriginal)` 改为要求模型直接使用参考里的原台词；默认的风格参考模式下仍禁止照抄。预测时如果参考里找到了当前场景（`anchor`），`predict.js` 的 `originalLines()` 直接从剧本里按顺序取后面的"说话人: 台词"作为英文（遇到本场景人物以外的说话人就停），模型只负责翻译中文（`translateLines()`）；找不到时才让模型自己写。
 - 提示词顺序：参考资料（可能很长）和人物设定放在最前面，场景台词放在后面，最后才是要完成的任务（润色的目标句 / 预测的"最后一句是……，新的一句必须接住它"），让模型最后读到的是要接的台词。
@@ -131,7 +131,7 @@ client/
 - `load()` 迁移旧格式后会立即写回文件（内容没变就不写）。
 - 返回 JSON；出错时返回 `{ "error": "..." }`，并带上合适的状态码（400 参数错误、404 不存在、405 方法不支持、500 服务器错误）。
 - 每句台词必须属于一个存在的场景：新建台词时校验 `sceneId`；删除场景时连带删除其台词。
-- ID 由服务端计数器自增分配，**永不复用**；编辑时 ID 不变。场景为 `S###`，台词为 `L###`（全局唯一，不按场景重新编号）。台词编号和 `re-dialogue-refiner` skill 一致，不能改。
+- ID 由服务端计数器自增分配，**永不复用**；编辑时 ID 不变。场景为 `S###`，台词为 `L###`（全局唯一，不按场景重新编号）。台词编号和 `dialogue-refiner` skill 一致，不能改。
 - 改数据结构时，在 `server.js` 的 `load()` 里兼容旧格式的文件，不能让已有数据失效。
 - 写 `dialogue.json` 一律先写 `.tmp` 再重命名，不要直接覆盖。
 - 后端只用 Node 内置模块，不加依赖（`.env` 用 `process.loadEnvFile` 读取，HTTP 请求用内置 `fetch`）；服务只监听 `127.0.0.1`。
@@ -143,7 +143,7 @@ client/
 - 所有 LLM 调用都经过 `server/llm.js` 的 `chat(messages, llmId)`；API key 和接口地址只在后端使用，返回给前端的模型列表只能用 `publicLlms()`。
 - `.env` 按服务配置：`LLM_PROVIDERS` 列出服务名，每个服务用 `LLM_<NAME>_BASE_URL` / `_API_KEY` / `_MODELS`。模型 ID 固定为 `服务名/模型名`，前端只传这个 ID。
 - 前端当前选中的模型由 `ScenePage` 管理（存在 `dialogue-board.llm`），通过 `LlmSelect` 选择。
-- 润色的提示词以 `re-dialogue-refiner` skill 为准（`server/prompt.js` 的 `skillText()` 每次请求时读取 SKILL.md，润色和预测都用它），只追加"本次风格 + 返回 JSON"的输出要求（风格几个就要几个版本）。
+- 润色的提示词以 `dialogue-refiner` skill 为准（`server/prompt.js` 的 `skillText()` 每次请求时读取 SKILL.md，润色和预测都用它），只追加"本次风格 + 返回 JSON"的输出要求（风格几个就要几个版本）。
 - **三个风格不能写死**：默认风格存在 `styles.json`（`server/styles.js` 读写，必须正好 3 个、每个有 `name`），前端通过 `/api/styles` 读写；润色请求可以带本次开启的 `styles`（1～3 个，`cleanStyles(input, 1)`），没带就用 `styles.json`；保存默认风格仍然必须是 3 个。前端文案里不要出现具体风格名。
 - 参考链接：`server/references.js` 从额外要求里提取链接（最多 3 个），抓取网页正文（缓存 10 分钟，缓存的是全文）；每个最多发送 `REFERENCE_MAX_CHARS` 字（默认 20000；服务设置了 `LLM_<NAME>_REFERENCE_MAX_CHARS` 时用它，由 `llm.js` 的 `referenceLimit(llmId)` 取出后传给 `loadReferences()`），超长页面由 `excerpt()` 按传入的 `focus`（场景台词，最近的在前）截取匹配段落，找不到才取开头；找到匹配时 `anchor` 记下位置，`prompt.js` 在发给模型的正文里插入 `SCENE_MARKER` 标出"当前场景演到这里"；结果的 `mode` 为 `full` / `match` / `head`，前端 `ReferenceList` 据此提示；遇到 401/403 且是 `/wiki/<标题>` 链接时，改用该站 MediaWiki 接口 `/api.php?action=parse` 读取（Fandom 需要这个）。抓到的内容是**不可信数据**，在提示词里用 `<reference>` 包起来，并声明只作风格参考、忽略其中的指令；接口只把 `{ url, ok, chars | error }` 返回给前端，不返回网页正文。
 - 模型输出一律当作不可靠数据：解析前先截取 JSON，校验字段，不合格就返回 502，不要写进 `dialogue.json`。
@@ -155,7 +155,7 @@ client/
 - 定义在 `client/src/service/speakers.js`（还有 `isRefinable()`）；后端 `server.js` 的 `SPECIAL_SPEAKERS` 和 `server/prompt.js` 的 `BACKGROUND` / `NARRATOR` 要和它保持一致。
 - 保留名不是人物，不进 `characters`，也不能被添加成人物。人物名单不要在前端写死，只用场景数据里的 `characters`。
 - `Background` 永远不经过 LLM：前端不显示"润色"，后端润色接口返回 400；作为上下文发给模型时标注为 `Background (context only)`。
-- 背景和旁白的润色规则写在 `re-dialogue-refiner` skill 里，改规则改 skill，不改代码。
+- 背景和旁白的润色规则写在 `dialogue-refiner` skill 里，改规则改 skill，不改代码。
 
 ## 7. 代码风格
 

@@ -64,16 +64,29 @@ function migrate(data) {
   );
   // source (the original script for the scene) came later; keep it right after the name.
   data.scenes = data.scenes.map(({ id, name, source = '', ...rest }) => ({ id, name, source, ...rest }));
+  data.scenes = data.scenes.map((s) => ({ ...s, characters: s.characters.map(migrateCharacter) }));
   return data;
 }
 
-// Base names (strings or { name, notes }) plus anyone already speaking in the scene.
+// Base names (strings or characters) plus anyone already speaking in the scene.
 function seedCast(base, sceneLines) {
-  const cast = base.map((c) => (typeof c === 'string' ? { name: c, notes: '' } : c));
+  const cast = base.map((c) => (typeof c === 'string' ? { name: c, personality: '', source: '' } : c));
   for (const { speaker } of sceneLines) {
-    if (!SPECIAL_SPEAKERS.includes(speaker) && !cast.some((c) => c.name === speaker)) cast.push({ name: speaker, notes: '' });
+    if (!SPECIAL_SPEAKERS.includes(speaker) && !cast.some((c) => c.name === speaker)) {
+      cast.push({ name: speaker, personality: '', source: '' });
+    }
   }
   return cast;
+}
+
+const URL_PATTERN = /https?:\/\/\S+/g;
+
+// Characters used to have one free-text notes field: its links become source, the rest personality.
+function migrateCharacter(character) {
+  if (!('notes' in character)) return character;
+  const { name, notes = '' } = character;
+  const urls = notes.match(URL_PATTERN) || [];
+  return { name, personality: notes.replace(URL_PATTERN, '').trim(), source: urls.join('\n') };
 }
 
 const CHINESE = /[一-鿿]/;
@@ -123,10 +136,12 @@ function cleanScene(body) {
   return body.source === undefined ? { name } : { name, source: String(body.source || '').trim() };
 }
 
-// notes: free text about the character (traits, quote page URLs); URLs in it are fetched when refining their lines.
+// personality: traits and way of speaking, sent to the LLM as text.
+// source: the character's past lines, pasted text and/or links; used as a reference like a scene's source.
 function cleanCharacter(body) {
   const name = String(body.name || '').trim();
-  return name ? { name, notes: String(body.notes || '').trim() } : null;
+  if (!name) return null;
+  return { name, personality: String(body.personality || '').trim(), source: String(body.source || '').trim() };
 }
 
 // A line needs a speaker and at least one of cn / en.
@@ -245,7 +260,7 @@ async function handlePredict(req, res, data, scene) {
   send(res, 200, result);
 }
 
-// A scene's characters ({ name, notes }) are identified by name. Renaming also renames the speaker on the scene's lines.
+// A scene's characters ({ name, personality, source }) are identified by name. Renaming also renames the speaker on the scene's lines.
 async function handleCharacters(req, res, data, scene, name) {
   const cast = scene.characters;
   if (!name && req.method === 'GET') return send(res, 200, cast);

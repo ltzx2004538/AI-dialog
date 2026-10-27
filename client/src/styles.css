@@ -479,6 +479,7 @@ textarea.text-input { resize: vertical; min-width: 0; font: inherit; }
   overflow: hidden;
 }
 .empty-notes { font-style: italic; }
+.character-source { -webkit-line-clamp: 2; }
 .character-form { display: flex; flex-direction: column; gap: 6px; }
 .character-form .character-actions { gap: 6px; }
 .character-notes-input { resize: vertical; font: inherit; }

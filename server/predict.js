@@ -129,7 +129,7 @@ Return a single JSON object and nothing else: {"cn":["..."]} with exactly ${line
 
 // Resolves to { lines: [{ speaker, cn, en }], references }. Nothing is saved; the client adds the lines the writer keeps.
 // scene.source (the scene's original script) is always a reference. Links in the instruction are fetched first,
-// then links in the source, then links in the notes of characters already speaking in the scene.
+// then links in the scene's source, then the sources of characters already speaking in the scene.
 // preferOriginal: continue with the references' own lines when they contain this scene (e.g. a game transcript).
 // Every call that passes validation is logged (see predictLog.js), including failures.
 async function predictLines({ scene, sceneLines, count, instruction, llmId, preferOriginal }) {
@@ -164,14 +164,14 @@ async function predictLines({ scene, sceneLines, count, instruction, llmId, pref
 async function predictWithLog({ scene, sceneLines, count, instruction, llmId, preferOriginal }, log) {
   const speakers = [...scene.characters.map((c) => c.name), NARRATOR, BACKGROUND];
   const speaking = new Set(sceneLines.map((l) => l.speaker));
-  const notes = scene.characters.filter((c) => speaking.has(c.name)).map((c) => c.notes);
+  const sources = scene.characters.filter((c) => speaking.has(c.name) && c.source);
   // Long reference pages are cut around the latest lines (most recent first), so what follows them is included.
   const focus = sceneLines.slice(-3).reverse().flatMap((l) => [l.en, l.cn]);
   const references = await loadReferences(
-    [instruction, scene.source, ...notes].filter(Boolean).join('\n'),
+    [instruction, scene.source, ...sources.map((c) => c.source)].filter(Boolean).join('\n'),
     focus,
     referenceLimit(llmId),
-    scene.source
+    [{ text: scene.source }, ...sources.map((c) => ({ text: c.source, name: c.name }))]
   );
   log.references = logReferences(references);
   if (preferOriginal) {

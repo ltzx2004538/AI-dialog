@@ -1,4 +1,4 @@
-// The three refine styles, stored in styles.json so the web app and the re-dialogue-refiner skill share them.
+// The three refine styles, stored in styles.json so the web app and the dialogue-refiner skill share them.
 const fs = require('fs');
 const path = require('path');
 

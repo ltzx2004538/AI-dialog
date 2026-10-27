@@ -78,7 +78,7 @@ export default function ScenePage() {
   const scene = scenes?.find((s) => s.id === sceneId);
   const sceneLines = useMemo(() => lines.filter((l) => l.sceneId === sceneId), [lines, sceneId]);
 
-  // The cast belongs to the scene: scene.characters is [{ name, notes }].
+  // The cast belongs to the scene: scene.characters is [{ name, personality, source }].
   const characters = scene?.characters || [];
   const speakers = useMemo(() => characters.map((c) => c.name), [characters]);
   const speakerProps = { speakers };

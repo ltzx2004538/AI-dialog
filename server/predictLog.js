@@ -16,6 +16,7 @@ function logReferences(references) {
     return {
       url: r.url,
       pasted: r.pasted,
+      name: r.name,
       ok: true,
       chars: r.text.length,
       total: r.total,
