@@ -2,7 +2,7 @@
   "name": "ai-dialog",
   "version": "1.0.0",
   "private": true,
-  "description": "Local web editor for Leon & Ada dialogue lines",
+  "description": "Local web editor for writing and refining bilingual dialogue lines with LLMs",
   "scripts": {
     "start": "vite build && node server.js",
     "server": "node server.js",
