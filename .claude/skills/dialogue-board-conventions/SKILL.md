@@ -11,12 +11,13 @@ description: Coding conventions for the Dialogue Board web app (React + Vite fro
 
 ```
 server.js                 // 后端入口：Node 原生 http，路由 /api、托管 dist/、读写 dialogue.json
-server/                   // 后端模块：llm.js（OpenAI 兼容接口客户端）、prompt.js（润色和预测共用的提示词工具：读 skill、场景台词、人物设定、参考资料、解析 JSON）、refine.js（润色）、predict.js（AI 预测后续台词）、predictLog.js（预测日志）、styles.js（读写 styles.json）、references.js（抓取额外要求里的参考链接）
+server/                   // 后端模块：llm.js（OpenAI 兼容接口客户端）、prompt.js（润色和预测共用的提示词工具：读 skill、场景台词、人物设定、参考资料、解析 JSON）、refine.js（润色）、predict.js（AI 预测后续台词）、predictLog.js（预测日志）、profile.js（从台词参考生成性格档案）、styles.js（读写 styles.json）、references.js（抓取额外要求里的参考链接）
 .env / .env.example       // LLM 配置（.env 不提交；新增配置项要同步写进 .env.example）
 dialogue.json             // 台词数据（运行时生成，不要手动改结构）
 styles.json               // 润色的三个风格（网页 /styles 页面和 dialogue-refiner skill 共用）
 vite.config.js            // root = client，构建输出到 dist/
 prd/                      // 产品需求文档
+plans/                    // 开发计划：待提交、近期要做、候选功能（做完就勾掉）
 client/
   index.html
   src/
@@ -39,8 +40,9 @@ client/
 | 组件 | 用途 |
 | --- | --- |
 | `AppLayout` | 所有页面共用的外框：标题（回首页）+ 语言切换 + `<Outlet />` |
-| `IconButton` | 只有图标的按钮，props：`icon`（`'pencil'` / `'bin'`…）、`label`（无障碍名称和提示）、`onClick`、`danger`。现有 `pencil` / `bin` / `gear`，新图标加到它的 `ICONS` 里，**不要再单独写图标组件** |
-| `LineItem` | 一句台词：ID、"中文名：中文" / "英文名: 英文"（名字来自 `speakers.js` 的 `speakerNames(speaker, cnNames)`），行尾齿轮（编辑）、铅笔（润色）、复制、垃圾桶（删除）四个图标，只在悬停 / 聚焦这一行时显示 |
+| `IconButton` | 只有图标的按钮，props：`icon`（`'pencil'` / `'bin'`…）、`label`（无障碍名称和提示）、`onClick`、`danger`、`className`（追加在 `icon-btn` 后面）。现有 `pencil` / `bin` / `gear` / `copy` / `check` / `grip`，新图标加到它的 `ICONS` 里，**不要再单独写图标组件** |
+| `LineItem` | 一句台词：ID、"中文名：中文" / "英文名: 英文"（名字来自 `speakers.js` 的 `speakerNames(speaker, cnNames)`），行尾齿轮（编辑）、铅笔（润色）、复制、垃圾桶（删除）四个图标，只在悬停 / 聚焦这一行时显示；ID 前面有拖动手柄（`grip`），同样悬停时显示 |
+| `LineList` | 场景的台词列表（`<ol>`），负责调整顺序：用 Pointer Events 拖手柄（鼠标、触屏都能用，不用 HTML5 `draggable`），或者聚焦手柄按 ↑ ↓；松手后 `onReorder(ids)` 交给页面保存。拖动状态只在这里，`LineItem` 只接收 `dragHandleProps` 和 `dragClass` |
 | `ActionMenu` | 铅笔图标 + 下拉菜单，传 `items: [{ label, onClick, danger }]` |
 | `TextInputDialog` | 输入一个文本的弹窗（首页重命名场景用它） |
 | `SceneDialog` | 场景名 + 原剧本参考（`source`）的弹窗：首页新建场景、场景页标题旁的齿轮按钮编辑场景都用它 |
@@ -103,6 +105,9 @@ client/
   <button>{t('line.save')}</button>
   <span>{t('app.lineCount', { count: lines.length })}</span>
   ```
+- **输入框必须带可见的 label（必须遵守）**：每个 `<input>`、`<textarea>`、`<select>` 都配一个 `<label className="modal-label" htmlFor={...}>`，id 用 `useId()` 生成（同一个组件可能同时出现多份，比如添加表单和编辑表单）。label 写"这是什么"，可选项标"（可选）"；**placeholder 只写示例**（`例如 守卫`、`https://…`），不写说明，因为输入内容后 placeholder 会消失。文案 key 成对命名：`xxxLabel` / `xxxPlaceholder`。
+  - 例：`CharactersDialog` 的 `CharacterFields`、`SceneDialog`。
+  - 唯一例外：一行里只有一个输入框、而且旁边的按钮已经说明用途的紧凑输入（如底部 `Composer` 的台词输入框），可以不显示 label，但要用 `aria-label` 给出名称。
 - 新增文案时，**`cn.js` 和 `en.js` 要同时加**，两个文件的 key 结构必须完全一致。
 - key 按所属区域分组，用 camelCase：`app.*`、`composer.*`、`line.*`、`newSpeakerDialog.*`……新组件就新开一组。
 - 变量用 `{name}` 占位，调用时传参数，不要用字符串拼接拼句子。
@@ -119,10 +124,12 @@ client/
 
 ## 6. 后端与数据
 
-- 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, cnName, personality, source }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
-- 接口统一在 `/api` 下，REST 风格：`/api/scenes`、`/api/scenes/:id`、`/api/lines`、`/api/lines/:id`、`/api/scenes/:id/characters`、`/api/scenes/:id/characters/:name`（GET / POST / PUT / DELETE）。
-- 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, cnName, personality, source }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
-- 人物是 `{ name, cnName, personality, source }`：`cnName` 是中文名（可空，显示时退回 `name`），显示在中文台词前，也放进提示词；`personality` 是性格和说话方式，`server/prompt.js` 的 `characterNotes()` 把出场人物的性格放进提示词（润色时目标说话人在前）；`source` 是台词参考（粘贴的台词和/或链接），用法同场景的 `source`：润色只带目标说话人的，预测带已出场人物的，作为 `loadReferences()` 的 `pasted` 项（`{ text, name }`，排在场景 `source` 之后），其中的链接和额外要求里的一起抓取（额外要求优先）。旧的 `notes` 在 `server.js` 的 `migrateCharacter()` 里拆成链接 → `source`、其余 → `personality`。
+- 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, cnName, personality, source, useSource }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
+- 接口统一在 `/api` 下，REST 风格：`/api/scenes`、`/api/scenes/:id`、`/api/lines`、`/api/lines/:id`、`/api/scenes/:id/characters`、`/api/scenes/:id/characters/:name`（GET / POST / PUT / DELETE），以及调整台词顺序的 `PUT /api/scenes/:id/line-order`。
+- 台词顺序就是 `lines` 数组里的顺序（不是 ID 顺序）。`line-order` 的 body 是 `{ ids }`，必须正好列出本场景每句台词一次；本场景的台词只在自己原来占的位置之间互换，其他场景的台词不动，ID 不变。前端 `service/lines.js` 的 `applyLineOrder()` 用同样的规则先更新界面，保存失败就重新加载台词。
+- 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, cnName, personality, source, useSource }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
+- 性格档案：`server/profile.js` 的 `summarizeCharacter()`（`POST /api/scenes/:id/profile`）把人物的 `source` 总结成短档案，返回给表单填进 `personality`，不保存；模型直接返回纯文本（档案里有引号，用 JSON 容易格式错误）。`useSource: false` 时润色和预测都不发送这个人物的 `source`，只靠 `personality`；前端生成档案后自动把它关掉。
+- 人物是 `{ name, cnName, personality, source, useSource }`：`cnName` 是中文名（可空，显示时退回 `name`），显示在中文台词前，也放进提示词；`personality` 是性格和说话方式，`server/prompt.js` 的 `characterNotes()` 把出场人物的性格放进提示词（润色时目标说话人在前）；`source` 是台词参考（粘贴的台词和/或链接），用法同场景的 `source`：润色只带目标说话人的，预测带已出场人物的，作为 `loadReferences()` 的 `pasted` 项（`{ text, name }`，排在场景 `source` 之后），其中的链接和额外要求里的一起抓取（额外要求优先）。旧的 `notes` 在 `server.js` 的 `migrateCharacter()` 里拆成链接 → `source`、其余 → `personality`。
 - `source`（场景的原剧本参考，粘贴的原台词和/或链接）：润色和预测都把它交给 `loadReferences(text, focus, maxChars, pasted)`，去掉链接后的文字作为 `{ url: '', pasted: true }` 排在最前面，其中的链接和额外要求里的一起抓取（额外要求优先）。`PUT /api/scenes/:id` 不带 `source` 时保留原值（首页重命名只发 `name`）；`load()` 给旧场景补上空的 `source`。
 - `preferOriginal`（润色 / 预测请求可带）：`referenceBlock(references, preferOriginal)` 改为要求模型直接使用参考里的原台词；默认的风格参考模式下仍禁止照抄。预测时如果参考里找到了当前场景（`anchor`），`predict.js` 的 `originalLines()` 直接从剧本里按顺序取后面的"说话人: 台词"作为英文（遇到本场景人物以外的说话人就停），模型只负责翻译中文（`translateLines()`）；找不到时才让模型自己写。
 - 提示词顺序：参考资料（可能很长）和人物设定放在最前面，场景台词放在后面，最后才是要完成的任务（润色的目标句 / 预测的"最后一句是……，新的一句必须接住它"），让模型最后读到的是要接的台词。
@@ -176,8 +183,9 @@ client/
 - [ ] `npx.cmd vite build` 构建通过。
 - [ ] 组件 / 页面里没有写死的界面文字（可以在 `component/`、`page/` 下搜索中文字符确认）。
 - [ ] `cn.js` 和 `en.js` 的 key 一一对应，两种语言切换后都显示正常。
+- [ ] 新增或修改的输入框都有可见的 label（`htmlFor` 对上 `useId()` 的 id），placeholder 只写示例（第 4 节）。
 - [ ] 新文件放在了正确的文件夹里，命名符合第 2 节。
 - [ ] JSX 里的事件处理都是具名函数（第 3 节）：搜索 `on[A-Z]\w*=\{\(` 只剩列表项传参的一行写法。
 - [ ] 新改的组件 JSX 里没有 `? :`、`&&` 这类判断，都提到了 `renderXxx()` 函数里（第 3 节）。
 - [ ] 新页面 / 新路由能直接打开和刷新；改了 `server.js` 的话已经重启服务。
-- [ ] 功能有变化时，同步更新 `prd/dialogue-board-prd.md`。
+- [ ] 功能有变化时，同步更新 `prd/dialogue-board-prd.md`；做完的计划项在 `plans/dialogue-board-plans.md` 里勾掉，发现的遗留问题记进去。

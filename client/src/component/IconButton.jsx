@@ -21,6 +21,16 @@ const ICONS = {
     </>
   ),
   check: <path d="M20 6 9 17l-5-5" />,
+  grip: (
+    <>
+      <circle cx="9" cy="6" r="1" />
+      <circle cx="15" cy="6" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="9" cy="18" r="1" />
+      <circle cx="15" cy="18" r="1" />
+    </>
+  ),
   gear: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -30,12 +40,15 @@ const ICONS = {
 };
 
 // Icon-only button. icon: a key of ICONS; label: accessible name and tooltip; danger: red on hover.
-// Other props (aria-expanded…) are passed to the <button>.
-export default function IconButton({ icon, label, onClick, danger, ...rest }) {
+// className is added to the button's own classes; other props (aria-expanded…) are passed to the <button>.
+export default function IconButton({ icon, label, onClick, danger, className, ...rest }) {
+  let classes = 'icon-btn';
+  if (danger) classes += ' icon-btn-danger';
+  if (className) classes += ` ${className}`;
   return (
     <button
       type="button"
-      className={danger ? 'icon-btn icon-btn-danger' : 'icon-btn'}
+      className={classes}
       aria-label={label}
       title={label}
       onClick={onClick}

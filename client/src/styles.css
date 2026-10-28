@@ -132,9 +132,26 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .line-id {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font: 12px/1.9 ui-monospace, Consolas, monospace;
   color: var(--muted);
 }
+
+/* Reordering: the grip shows with the other row actions; touch-action keeps a finger drag from scrolling the page. */
+.drag-handle { padding: 2px 0; cursor: grab; touch-action: none; visibility: hidden; }
+.line:hover .drag-handle,
+.line:focus-within .drag-handle { visibility: visible; }
+@media (hover: none) {
+  .drag-handle { visibility: visible; }
+}
+.lines.reordering { user-select: none; cursor: grabbing; }
+.lines.reordering .drag-handle { cursor: grabbing; }
+.line.dragging { opacity: 0.45; }
+/* Where the dragged row will land: a bar above this row, or below the last one. */
+.line.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.line.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .line-speaker { font-weight: 600; color: var(--other); }
 .speaker-leon .line-speaker { color: var(--leon); }
 .speaker-ada .line-speaker { color: var(--ada); }
@@ -439,7 +456,7 @@ textarea.text-input { resize: vertical; min-width: 0; font: inherit; }
 
 @media (max-width: 560px) {
   /* Four icons would squeeze the text, so they move under it. */
-  .line { grid-template-columns: 44px 1fr; }
+  .line { grid-template-columns: 52px 1fr; }
   .line-actions, .line .confirm { grid-column: 2; justify-content: flex-end; }
 }
 
@@ -488,6 +505,13 @@ textarea.text-input { resize: vertical; min-width: 0; font: inherit; }
 .empty-notes { font-style: italic; }
 .character-source { -webkit-line-clamp: 2; }
 .character-form { display: flex; flex-direction: column; gap: 6px; }
+/* English and Chinese name side by side, stacked on narrow screens. */
+.character-names { display: flex; flex-wrap: wrap; gap: 8px; }
+/* One label + input per name; the labels keep the inputs readable once they are filled in. */
+.character-field { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.character-names .text-input { min-width: 0; }
+/* Generate button on the left, the "also send the reference" switch on the right; stacked when narrow. */
+.character-source-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .character-form .character-actions { gap: 6px; }
 .character-notes-input { resize: vertical; font: inherit; }
 .scene-source-input { min-height: 160px; font-size: 13px; }

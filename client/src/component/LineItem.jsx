@@ -10,7 +10,8 @@ const COPIED_MS = 1500;
 
 // refineProps: { styles, onRefine } passed through to RefineDialog.
 // cnNames: { [character name]: Chinese name }, shown before the Chinese text.
-export default function LineItem({ line, speakerProps, cnNames, refineProps, onUpdate, onDelete }) {
+// dragHandleProps: pointer and key handlers for the reorder handle (from LineList); dragClass: the row's drag state class.
+export default function LineItem({ line, speakerProps, cnNames, refineProps, dragHandleProps, dragClass, onUpdate, onDelete }) {
   const { t } = useTranslation();
   const [mode, setMode] = useState('view'); // view | edit | confirm | refine
   const [speaker, setSpeaker] = useState(line.speaker);
@@ -137,7 +138,7 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, onU
 
   if (mode === 'edit') {
     return (
-      <li className="line editing">
+      <li className="line editing" data-line-id={line.id}>
         <span className="line-id">{line.id}</span>
         <form className="edit-form" onSubmit={saveEdit} onKeyDown={onEditKeyDown}>
           <SpeakerSelect {...speakerProps} value={speaker} onChange={setSpeaker} />
@@ -154,10 +155,14 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, onU
 
   let lineClass = `line speaker-${line.speaker.toLowerCase()}`;
   if (mode === 'confirm') lineClass += ' confirming';
+  if (dragClass) lineClass += ` ${dragClass}`;
 
   return (
-    <li className={lineClass}>
-      <span className="line-id">{line.id}</span>
+    <li className={lineClass} data-line-id={line.id}>
+      <span className="line-id">
+        <IconButton icon="grip" label={t('line.reorder')} className="drag-handle" data-line-id={line.id} {...dragHandleProps} />
+        {line.id}
+      </span>
       <span className="line-text">
         {renderText(names.cn, line.cn, 'line-cn', '：')}
         {renderText(names.en, line.en, 'line-en', ': ')}

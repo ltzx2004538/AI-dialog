@@ -13,6 +13,7 @@ try {
 
 const { publicLlms } = require('./server/llm.js');
 const { predictLines } = require('./server/predict.js');
+const { summarizeCharacter } = require('./server/profile.js');
 const { refineLine } = require('./server/refine.js');
 const { cleanStyles, loadStyles, saveStyles } = require('./server/styles.js');
 
@@ -70,11 +71,10 @@ function migrate(data) {
 
 // Base names (strings or characters) plus anyone already speaking in the scene.
 function seedCast(base, sceneLines) {
-  const cast = base.map((c) => (typeof c === 'string' ? { name: c, cnName: '', personality: '', source: '' } : c));
+  const blank = (name) => ({ name, cnName: '', personality: '', source: '', useSource: true });
+  const cast = base.map((c) => (typeof c === 'string' ? blank(c) : c));
   for (const { speaker } of sceneLines) {
-    if (!SPECIAL_SPEAKERS.includes(speaker) && !cast.some((c) => c.name === speaker)) {
-      cast.push({ name: speaker, cnName: '', personality: '', source: '' });
-    }
+    if (!SPECIAL_SPEAKERS.includes(speaker) && !cast.some((c) => c.name === speaker)) cast.push(blank(speaker));
   }
   return cast;
 }
@@ -82,14 +82,14 @@ function seedCast(base, sceneLines) {
 const URL_PATTERN = /https?:\/\/\S+/g;
 
 // Characters used to have one free-text notes field: its links become source, the rest personality.
-// cnName (shown before Chinese lines) came later and starts empty.
+// cnName (shown before Chinese lines) came later and starts empty; useSource came later too and starts on.
 function migrateCharacter(character) {
   let { name, cnName = '', personality = '', source = '' } = character;
   if ('notes' in character) {
     personality = character.notes.replace(URL_PATTERN, '').trim();
     source = (character.notes.match(URL_PATTERN) || []).join('\n');
   }
-  return { name, cnName, personality, source };
+  return { name, cnName, personality, source, useSource: character.useSource !== false };
 }
 
 const CHINESE = /[一-鿿]/;
@@ -142,11 +142,18 @@ function cleanScene(body) {
 // cnName: Chinese name shown before Chinese lines (name is used when empty).
 // personality: traits and way of speaking, sent to the LLM as text.
 // source: the character's past lines, pasted text and/or links; used as a reference like a scene's source.
+// useSource: false once personality holds a profile made from source, so requests send the short profile only.
 function cleanCharacter(body) {
   const name = String(body.name || '').trim();
   if (!name) return null;
   const field = (key) => String(body[key] || '').trim();
-  return { name, cnName: field('cnName'), personality: field('personality'), source: field('source') };
+  return {
+    name,
+    cnName: field('cnName'),
+    personality: field('personality'),
+    source: field('source'),
+    useSource: body.useSource !== false,
+  };
 }
 
 // A line needs a speaker and at least one of cn / en.
@@ -251,6 +258,29 @@ async function handleRefine(req, res, data, id) {
   send(res, 200, result);
 }
 
+// body.ids: every line ID of the scene, in the new order. Lines stay in one flat list, so the scene's lines are
+// rearranged in the slots they already take; other scenes' lines do not move. IDs keep their numbers.
+async function handleLineOrder(req, res, data, scene) {
+  if (req.method !== 'PUT') return send(res, 405, { error: 'method not allowed' });
+  const { ids } = await readBody(req);
+  const byId = new Map(data.lines.filter((l) => l.sceneId === scene.id).map((l) => [l.id, l]));
+  const valid = Array.isArray(ids) && ids.length === byId.size && new Set(ids).size === ids.length && ids.every((id) => byId.has(id));
+  if (!valid) return send(res, 400, { error: `ids must list every line of ${scene.id} once` });
+  let next = 0;
+  data.lines = data.lines.map((l) => (l.sceneId === scene.id ? byId.get(ids[next++]) : l));
+  save(data);
+  send(res, 200, data.lines.filter((l) => l.sceneId === scene.id));
+}
+
+// Drafts a character's personality from their line reference; nothing is saved (the writer reviews it in the form).
+async function handleProfile(req, res) {
+  if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
+  const body = await readBody(req);
+  const character = cleanCharacter(body);
+  if (!character) return send(res, 400, { error: 'name is required' });
+  send(res, 200, await summarizeCharacter({ character, llmId: body.llm || undefined }));
+}
+
 async function handlePredict(req, res, data, scene) {
   if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
   const body = await readBody(req);
@@ -265,7 +295,7 @@ async function handlePredict(req, res, data, scene) {
   send(res, 200, result);
 }
 
-// A scene's characters ({ name, cnName, personality, source }) are identified by name. Renaming also renames the speaker on the scene's lines.
+// A scene's characters ({ name, cnName, personality, source, useSource }) are identified by name. Renaming also renames the speaker on the scene's lines.
 async function handleCharacters(req, res, data, scene, name) {
   const cast = scene.characters;
   if (!name && req.method === 'GET') return send(res, 200, cast);
@@ -332,6 +362,21 @@ async function handleApi(req, res, url) {
     const scene = data.scenes.find((s) => s.id === decodeURIComponent(predict[1]));
     if (!scene) return send(res, 404, { error: `scene ${predict[1]} not found` });
     return handlePredict(req, res, data, scene);
+  }
+
+  const lineOrder = url.pathname.match(/^\/api\/scenes\/([^/]+)\/line-order$/);
+  if (lineOrder) {
+    const scene = data.scenes.find((s) => s.id === decodeURIComponent(lineOrder[1]));
+    if (!scene) return send(res, 404, { error: `scene ${lineOrder[1]} not found` });
+    return handleLineOrder(req, res, data, scene);
+  }
+
+  const profile = url.pathname.match(/^\/api\/scenes\/([^/]+)\/profile$/);
+  if (profile) {
+    if (!data.scenes.some((s) => s.id === decodeURIComponent(profile[1]))) {
+      return send(res, 404, { error: `scene ${profile[1]} not found` });
+    }
+    return handleProfile(req, res);
   }
 
   const characters = url.pathname.match(/^\/api\/scenes\/([^/]+)\/characters(?:\/([^/]+))?$/);

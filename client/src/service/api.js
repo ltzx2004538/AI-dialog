@@ -21,11 +21,17 @@ export const createCharacter = (sceneId, character) => request('POST', character
 // Renaming (character.name !== name) also renames the speaker on the scene's lines.
 export const updateCharacter = (sceneId, name, character) => request('PUT', charactersUrl(sceneId, name), character);
 export const deleteCharacter = (sceneId, name) => request('DELETE', charactersUrl(sceneId, name));
+// Drafts a personality profile from character.source (pasted lines and/or links); nothing is saved.
+// Resolves to { personality, references }.
+export const generateProfile = (sceneId, { name, cnName, personality, source, llm }) =>
+  request('POST', `/api/scenes/${encodeURIComponent(sceneId)}/profile`, { name, cnName, personality, source, llm });
 
 export const fetchLines = () => request('GET', '/api/lines');
 export const createLine = (line) => request('POST', '/api/lines', line);
 export const updateLine = (id, line) => request('PUT', `/api/lines/${encodeURIComponent(id)}`, line);
 export const deleteLine = (id) => request('DELETE', `/api/lines/${encodeURIComponent(id)}`);
+// ids: every line ID of the scene in the new order. Resolves to the scene's lines in that order.
+export const updateLineOrder = (sceneId, ids) => request('PUT', `/api/scenes/${encodeURIComponent(sceneId)}/line-order`, { ids });
 // draft: optional edited { cn, en } to refine instead of the saved line. URLs in instruction are fetched as references.
 // Resolves to { versions: [{ cn, en }], references: [{ url, ok, chars?, error? }] }.
 // preferOriginal: reuse the references' own lines (e.g. a game transcript) when they contain this moment.

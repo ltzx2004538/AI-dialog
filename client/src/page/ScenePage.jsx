@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import CharactersDialog from '../component/CharactersDialog.jsx';
 import Composer from '../component/Composer.jsx';
 import IconButton from '../component/IconButton.jsx';
-import LineItem from '../component/LineItem.jsx';
+import LineList from '../component/LineList.jsx';
 import PredictDialog from '../component/PredictDialog.jsx';
 import SceneDialog from '../component/SceneDialog.jsx';
 import {
@@ -11,6 +11,7 @@ import {
   createLine,
   deleteCharacter,
   deleteLine,
+  generateProfile,
   fetchLines,
   fetchLlms,
   fetchScenes,
@@ -19,8 +20,10 @@ import {
   refineLine,
   updateCharacter,
   updateLine,
+  updateLineOrder,
   updateScene,
 } from '../service/api.js';
+import { applyLineOrder } from '../service/lines.js';
 import { sceneIdFromParam } from '../service/routes.js';
 import { readStorage, writeStorage } from '../service/storage.js';
 import { useTranslation } from '../translation/index.jsx';
@@ -107,6 +110,8 @@ export default function ScenePage() {
       // The server deleted the character's lines in this scene too.
       setLines((prev) => prev.filter((l) => !(l.sceneId === sceneId && l.speaker === name)));
     },
+    // Uses the LLM picked at the bottom of the page; a stronger model gives a better profile.
+    onGenerateProfile: (character) => generateProfile(sceneId, { ...character, llm: activeLlmId }),
   };
 
   function openCharacters() {
@@ -222,6 +227,20 @@ export default function ScenePage() {
       setLines((prev) => prev.filter((l) => l.id !== id));
     });
 
+  // Shown in the new order right away; if saving fails, reload so the list matches the file again.
+  const handleReorder = (ids) =>
+    run(async () => {
+      setLines((prev) => applyLineOrder(prev, sceneId, ids));
+      try {
+        await updateLineOrder(sceneId, ids);
+      } catch (err) {
+        setLines(await fetchLines());
+        throw err;
+      }
+    });
+
+  const lineProps = { speakerProps, cnNames, refineProps, onUpdate: handleUpdate, onDelete: handleDelete };
+
   const backLink = <Link to="/" className="back-link">{t('scene.back')}</Link>;
 
   // Still loading (and no load error yet).
@@ -255,23 +274,11 @@ export default function ScenePage() {
 
       {error && <div className="error">⚠ {error}</div>}
 
-      <ol className="lines">
-        {sceneLines.length === 0 && <li className="empty">{t('scene.emptyLines')}</li>}
-        {sceneLines.map((line) => (
-          <LineItem
-            key={line.id}
-            line={line}
-            speakerProps={speakerProps}
-            cnNames={cnNames}
-            refineProps={refineProps}
-            onUpdate={handleUpdate}
-            onDelete={handleDelete}
-          />
-        ))}
+      <LineList lines={sceneLines} lineProps={lineProps} onReorder={handleReorder}>
         <li ref={listEnd} className="list-end">
           {renderPredictButton()}
         </li>
-      </ol>
+      </LineList>
 
       <Composer speakerProps={speakerProps} llmProps={llmProps} onSubmit={handleAdd} />
 

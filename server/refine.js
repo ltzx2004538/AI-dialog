@@ -61,10 +61,12 @@ function parseVersions(content, count) {
 // scene.source (the scene's original script) is always a reference; its links come after the instruction's own.
 // scene.characters: [{ name, personality, source }]. The target speaker's source is a reference too, after those
 // (other characters' sources are left out, so they don't use up the reference limit; their personality is still sent).
+// A character with useSource off has a profile in personality, so their source isn't sent at all.
 // preferOriginal: use the references' own lines when they contain this moment.
 async function refineLine({ scene, sceneLines, target, instruction, styles, llmId, preferOriginal }) {
   if (target.speaker === BACKGROUND) throw httpError(400, 'Background lines are added as-is and never refined');
-  const speaker = scene.characters.find((c) => c.name === target.speaker);
+  const character = scene.characters.find((c) => c.name === target.speaker);
+  const speaker = character?.useSource === false ? undefined : character;
   // Long reference pages are cut around the target and the lines next to it.
   const index = sceneLines.findIndex((l) => l.id === target.id);
   const focus = [target, sceneLines[index - 1], sceneLines[index + 1]].filter(Boolean).flatMap((l) => [l.en, l.cn]);

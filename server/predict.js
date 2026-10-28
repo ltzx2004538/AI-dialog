@@ -164,7 +164,8 @@ async function predictLines({ scene, sceneLines, count, instruction, llmId, pref
 async function predictWithLog({ scene, sceneLines, count, instruction, llmId, preferOriginal }, log) {
   const speakers = [...scene.characters.map((c) => c.name), NARRATOR, BACKGROUND];
   const speaking = new Set(sceneLines.map((l) => l.speaker));
-  const sources = scene.characters.filter((c) => speaking.has(c.name) && c.source);
+  // useSource off: the character's personality already holds a profile made from the source.
+  const sources = scene.characters.filter((c) => speaking.has(c.name) && c.source && c.useSource !== false);
   // Long reference pages are cut around the latest lines (most recent first), so what follows them is included.
   const focus = sceneLines.slice(-3).reverse().flatMap((l) => [l.en, l.cn]);
   const references = await loadReferences(
