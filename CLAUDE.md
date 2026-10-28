@@ -35,7 +35,8 @@
 
 - **密钥**：`.env` 里有真实的 API key，永远不要提交，也不要打印出来。新增配置项写进 `.env.example`（不带真实值）。
 - **不提交的文件**：`.env`、`dialogue.json`（用户的台词，可能含粘贴的剧本）、`logs/`、`dist/`、`node_modules/`，都已在 `.gitignore` 里。
-- **自动推送**：项目的 Stop hook（`.claude/hooks/auto-push.js`）会在每轮结束、有未提交或未推送的改动时要求提交并推送到 GitHub（私有仓库 `ltzx2004538/AI-dialog`）。用户消息里说"不要推送 / 先别推 / don't push"时那一轮跳过（`no-push-flag.js`）。提交信息要说明改了什么，结尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`；提交前确认 `.env` 和 key 没有被暂存。
+- **仓库与分支**：GitHub 公开仓库 `ltzx2004538/AI-dialog`。`main` 受保护：其他人只能 fork 后提 PR，需要仓库主人批准才能合并；禁止强制推送和删除分支；仓库主人（管理员）可以直接推送。
+- **自动推送**：仓库主人本机的 Stop hook（脚本 `.claude/hooks/auto-push.js`，配置在不提交的 `.claude/settings.local.json`，所以不会影响 fork 的人）会在每轮结束、有未提交或未推送的改动时要求提交并推送到 `main`。用户消息里说"不要推送 / 先别推 / don't push"时那一轮跳过（`no-push-flag.js`）。提交信息要说明改了什么，结尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`；提交前确认 `.env` 和 key 没有被暂存。
 - **数据安全**：不要手动改 `dialogue.json` 的结构；改用户数据时走后端接口（服务运行中直接改文件可能被覆盖）。数据结构变化要在 `server.js` 的 `migrate()` 里兼容旧文件。
 - **ID**：场景 `S###`、台词 `L###` 由服务端分配，永不复用，编辑和排序都不改 ID。
 - **LLM 额度**：Gemini 免费额度每个模型每天大约 20 次，测试时尽量少调用；用完会返回 429，换模型或第二天再试。
