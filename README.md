@@ -90,6 +90,16 @@ npm run dev            # 前端：Vite 热更新
 
 服务只监听 `127.0.0.1`，只能在本机访问。
 
+## 测试
+
+```bash
+npm test
+```
+
+- `test/api/`：启动真实的后端，用临时的模拟数据测试所有接口（场景、台词、排序、人物、风格、润色、预测、生成性格、参考链接、旧数据迁移）。
+- `test/client/`：测试前端的请求函数、工具函数和中英文案。
+- 需要 AI 的功能用一个假的 LLM（`test/helpers/mockLlm.js`）返回模拟回复，不会调用真实模型，也不需要 API key。测试不会改动你的 `dialogue.json`、`styles.json` 和 `.env`。
+
 ## 数据文件
 
 | 文件 | 内容 |
@@ -105,6 +115,8 @@ server.js          后端入口（Node 原生 http）：/api 接口、托管 dis
 server/            LLM 客户端、提示词、润色、预测、参考资料抓取、预测日志
 client/            前端（React + Vite）：page/ 页面、component/ 组件、service/ 请求与工具、translation/ 中英文案
 prd/               产品需求文档
+plans/             开发计划
+test/              测试：api/ 后端接口、client/ 前端、helpers/ 启动服务和假 LLM
 .claude/skills/    dialogue-refiner（润色规则）、dialogue-board-conventions（代码规范）
 ```
 

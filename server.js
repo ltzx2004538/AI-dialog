@@ -4,9 +4,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+// Tests point DIALOGUE_ENV_FILE / DIALOGUE_DATA_FILE (and the ones in server/styles.js, server/predictLog.js)
+// at temporary files, so they never read the real API keys or touch the writer's data.
+const ENV_FILE = process.env.DIALOGUE_ENV_FILE || path.join(__dirname, '.env');
+
 // Load LLM settings from .env (optional; the app works without it, only refining is disabled).
 try {
-  process.loadEnvFile(path.join(__dirname, '.env'));
+  process.loadEnvFile(ENV_FILE);
 } catch {
   // No .env file.
 }
@@ -18,7 +22,7 @@ const { refineLine } = require('./server/refine.js');
 const { cleanStyles, loadStyles, saveStyles } = require('./server/styles.js');
 
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'dialogue.json');
+const DATA_FILE = process.env.DIALOGUE_DATA_FILE || path.join(__dirname, 'dialogue.json');
 const PUBLIC_DIR = path.join(__dirname, 'dist');
 
 const MIME = {

@@ -6,3 +6,4 @@ logs/
 dialogue.json
 .claude/hooks/.no-push
 .claude/settings.local.json
+.claude/hooks/.asked

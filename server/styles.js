@@ -2,7 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const STYLES_FILE = path.join(__dirname, '..', 'styles.json');
+// DIALOGUE_STYLES_FILE: tests use a temporary file instead.
+const STYLES_FILE = process.env.DIALOGUE_STYLES_FILE || path.join(__dirname, '..', 'styles.json');
 
 const DEFAULT_STYLES = [
   {

@@ -170,6 +170,7 @@ client/
 - 2 空格缩进，单引号，语句末尾加分号，多行对象 / 数组保留尾逗号。
 - 注释只写"为什么"，不写"做了什么"；用英文写注释。
 - 不留下未使用的 import、变量、组件、样式。
+- 读写文件的路径如果要在测试里替换，用 `process.env.DIALOGUE_XXX || 默认路径`（见第 8.1 节）。
 
 ## 8. 运行与构建（Windows）
 
@@ -178,9 +179,19 @@ client/
 - 开发热更新：一个终端运行 `npm.cmd run server:watch`（`node --watch`，改了 `server.js` / `server/*.js` 自动重启；改 `.env` 仍需手动重启），另一个运行 `npm.cmd run dev`（Vite 热更新），打开 http://localhost:5173 。
 - 用 `npm.cmd start` 运行（没开 Vite）时改了前端代码，运行 `npx.cmd vite build` 再刷新页面即可；这种方式下改了 `server.js` 需要重启服务。
 
+## 8.1 测试
+
+- 测试用 Node 内置的 `node:test`，不加测试框架依赖；运行 `npm.cmd test`。
+- 目录：`test/api/*.test.js` 测后端接口（每个文件一组功能），`test/client/*.test.mjs` 测前端 `service/` 和翻译文件，`test/helpers/` 放共用工具。
+- 后端测试用 `startApp()`（`test/helpers/app.js`）启动真实的 `server.js` 子进程，通过环境变量 `DIALOGUE_ENV_FILE`、`DIALOGUE_DATA_FILE`、`DIALOGUE_STYLES_FILE`、`DIALOGUE_PREDICT_LOG` 指向临时文件，`seedData()` 提供模拟数据。新增会写文件的模块，也要给它的文件路径加一个这样的环境变量。
+- **外部 AI 一律用假的**：`startApp()` 把 LLM 配成 `test/helpers/mockLlm.js` 的假服务，它根据系统提示词里的输出要求自动生成回复，并记录每次请求（`llm.lastRequest()` 可以检查提示词内容）；`llm.queueReply({ content })` / `llm.queueReply({ status })` 指定下一次的回复或错误；`llm.pages[...]` 提供假的参考网页。新的 AI 功能如果改了输出格式，要同步更新 `autoReply()`。
+- 每个新功能、每个接口行为变化都要有对应测试：正常流程、参数校验（400 / 404 / 405）、数据有没有正确写入文件、模型返回异常（502）。
+- 前端组件（JSX）目前没有渲染测试；组件里的逻辑尽量放进 `service/` 的纯函数，这样就能测到。
+
 ## 9. 完成前检查清单
 
 - [ ] `npx.cmd vite build` 构建通过。
+- [ ] 新功能 / 改动的行为都有对应测试（第 8.1 节），`npm.cmd test` 全部通过。
 - [ ] 组件 / 页面里没有写死的界面文字（可以在 `component/`、`page/` 下搜索中文字符确认）。
 - [ ] `cn.js` 和 `en.js` 的 key 一一对应，两种语言切换后都显示正常。
 - [ ] 新增或修改的输入框都有可见的 label（`htmlFor` 对上 `useId()` 的 id），placeholder 只写示例（第 4 节）。

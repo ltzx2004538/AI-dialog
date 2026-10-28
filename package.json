@@ -7,7 +7,8 @@
     "start": "vite build && node server.js",
     "server": "node server.js",
     "server:watch": "node --watch server.js",
-    "dev": "vite"
+    "dev": "vite",
+    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"test/api/*.test.js\" \"test/client/*.test.mjs\""
   },
   "dependencies": {
     "react": "^18.3.1",

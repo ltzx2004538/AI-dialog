@@ -3,7 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOG_FILE = path.join(__dirname, '..', 'logs', 'predict.jsonl');
+// DIALOGUE_PREDICT_LOG: tests use a temporary file instead.
+const LOG_FILE = process.env.DIALOGUE_PREDICT_LOG || path.join(__dirname, '..', 'logs', 'predict.jsonl');
 const MAX_ENTRIES = 100;
 // Text after the scene marker kept per reference: enough to see whether the match landed in the right place.
 const SNIPPET_CHARS = 600;
