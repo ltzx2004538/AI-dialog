@@ -13,6 +13,8 @@ export const fetchScenes = () => request('GET', '/api/scenes');
 export const createScene = (scene) => request('POST', '/api/scenes', scene);
 export const updateScene = (id, scene) => request('PUT', `/api/scenes/${encodeURIComponent(id)}`, scene);
 export const deleteScene = (id) => request('DELETE', `/api/scenes/${encodeURIComponent(id)}`);
+// A new scene with the same source and cast but no lines; resolves to it.
+export const copyScene = (id, name) => request('POST', `/api/scenes/${encodeURIComponent(id)}/copy`, { name });
 
 // Each scene has its own characters ({ name, personality, source }), returned with the scene; each call resolves to the scene's updated cast.
 const charactersUrl = (sceneId, name) =>
@@ -37,6 +39,11 @@ export const updateLineOrder = (sceneId, ids) => request('PUT', `/api/scenes/${e
 // preferOriginal: reuse the references' own lines (e.g. a game transcript) when they contain this moment.
 export const refineLine = (id, { draft, instruction, styles, llm, preferOriginal }) =>
   request('POST', `/api/lines/${encodeURIComponent(id)}/refine`, { draft, instruction, styles, llm, preferOriginal });
+
+// "Translate only": to ('cn' | 'en') is written from the other language of the line, or of draft when given.
+// Resolves to { cn, en }; nothing is saved.
+export const translateLine = (id, { draft, to, llm }) =>
+  request('POST', `/api/lines/${encodeURIComponent(id)}/translate`, { draft, to, llm });
 
 // Predicts the next count (1-10) lines of a scene; nothing is saved.
 // Resolves to { lines: [{ speaker, cn, en }], references: [{ url, ok, chars?, error? }] }.

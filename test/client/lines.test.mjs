@@ -1,7 +1,15 @@
 // client/src/service/lines.js: composer language split and the reorder rule shared with the server.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyLineOrder, splitByLanguage } from '../../client/src/service/lines.js';
+import { applyLineOrder, splitByLanguage, translationTarget } from '../../client/src/service/lines.js';
+
+test('translationTarget: only a line with exactly one language can be translated', () => {
+  assert.equal(translationTarget({ cn: '路上有点事。', en: '' }), 'en');
+  assert.equal(translationTarget({ cn: '', en: 'Something came up.' }), 'cn');
+  assert.equal(translationTarget({ cn: '  ', en: 'Something came up.' }), 'cn');
+  assert.equal(translationTarget({ cn: '路上有点事。', en: 'Something came up.' }), null);
+  assert.equal(translationTarget({ cn: '', en: '' }), null);
+});
 
 test('splitByLanguage: text with Chinese goes to cn, anything else to en', () => {
   assert.deepEqual(splitByLanguage('你好 Leon'), { cn: '你好 Leon', en: '' });

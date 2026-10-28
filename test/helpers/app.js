@@ -69,7 +69,7 @@ async function startApp(options = {}) {
       DIALOGUE_ENV_FILE: path.join(dir, 'no.env'),
       DIALOGUE_DATA_FILE: files.data,
       DIALOGUE_STYLES_FILE: files.styles,
-      DIALOGUE_PREDICT_LOG: files.log,
+      DIALOGUE_LOG_DIR: path.dirname(files.log),
       LLM_PROVIDERS: 'mock',
       LLM_MOCK_BASE_URL: llm.url,
       LLM_MOCK_MODELS: 'model-a,model-b',
@@ -113,9 +113,10 @@ async function startApp(options = {}) {
     llm,
     files,
     readData: () => JSON.parse(fs.readFileSync(files.data, 'utf8')),
-    readLog: () =>
+    // kind: 'predict' or 'refine' (logs/<kind>.jsonl).
+    readLog: (kind = 'predict') =>
       fs
-        .readFileSync(files.log, 'utf8')
+        .readFileSync(path.join(path.dirname(files.log), `${kind}.jsonl`), 'utf8')
         .split('\n')
         .filter(Boolean)
         .map((row) => JSON.parse(row)),

@@ -1,5 +1,6 @@
 // Builds the refine prompt from the dialogue-refiner skill, so the app and the chat follow the same rules.
-const { chat, httpError, referenceLimit } = require('./llm.js');
+const { appendLog, logOutput, logReferences } = require('./aiLog.js');
+const { chatJson, httpError, referenceLimit } = require('./llm.js');
 const { loadReferences } = require('./references.js');
 const {
   BACKGROUND,
@@ -63,8 +64,36 @@ function parseVersions(content, count) {
 // (other characters' sources are left out, so they don't use up the reference limit; their personality is still sent).
 // A character with useSource off has a profile in personality, so their source isn't sent at all.
 // preferOriginal: use the references' own lines when they contain this moment.
+// Every call that passes validation is logged to logs/refine.jsonl (see aiLog.js), including failures.
 async function refineLine({ scene, sceneLines, target, instruction, styles, llmId, preferOriginal }) {
   if (target.speaker === BACKGROUND) throw httpError(400, 'Background lines are added as-is and never refined');
+  const started = Date.now();
+  const log = {
+    time: new Date(started).toISOString(),
+    sceneId: scene.id,
+    sceneName: scene.name,
+    lineId: target.id,
+    llm: llmId || 'default',
+    styles: styles.map((s) => s.name),
+    preferOriginal: Boolean(preferOriginal),
+    instruction,
+    // With a draft from the dialog, this is the draft, not the saved line.
+    line: { speaker: target.speaker, cn: target.cn, en: target.en },
+  };
+  try {
+    const result = await refineWithLog({ scene, sceneLines, target, instruction, styles, llmId, preferOriginal }, log);
+    log.versions = result.versions;
+    return result;
+  } catch (err) {
+    log.error = err.message;
+    throw err;
+  } finally {
+    log.ms = Date.now() - started;
+    appendLog('refine', log);
+  }
+}
+
+async function refineWithLog({ scene, sceneLines, target, instruction, styles, llmId, preferOriginal }, log) {
   const character = scene.characters.find((c) => c.name === target.speaker);
   const speaker = character?.useSource === false ? undefined : character;
   // Long reference pages are cut around the target and the lines next to it.
@@ -76,14 +105,17 @@ async function refineLine({ scene, sceneLines, target, instruction, styles, llmI
     referenceLimit(llmId),
     [{ text: scene.source }, { text: speaker?.source, name: speaker?.name }]
   );
-  const content = await chat(
+  log.references = logReferences(references);
+  const versions = await chatJson(
     [
       { role: 'system', content: skillText() + outputRules(styles) },
       { role: 'user', content: userPrompt(scene, sceneLines, target, instruction, references, preferOriginal) },
     ],
-    llmId
+    llmId,
+    (content) => parseVersions(content, styles.length),
+    logOutput(log)
   );
-  return { versions: parseVersions(content, styles.length), references: publicReferences(references) };
+  return { versions, references: publicReferences(references) };
 }
 
 module.exports = { refineLine };

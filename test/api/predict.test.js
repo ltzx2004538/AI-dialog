@@ -69,6 +69,8 @@ test('speakers outside the cast are dropped, and extra lines are cut to count', 
 test('a single line object instead of { lines } is accepted; no usable line is 502', async () => {
   app.llm.queueReply({ content: '{"speaker":"Sam","cn":"嗯","en":"Hm"}' });
   assert.equal((await app.api('POST', '/api/scenes/S001/predict', { count: 1 })).body.lines[0].en, 'Hm');
+  // Unusable twice in a row (the first one is retried).
+  app.llm.queueReply({ content: '{"lines":[{"speaker":"Stranger","cn":"x","en":"x"}]}' });
   app.llm.queueReply({ content: '{"lines":[{"speaker":"Stranger","cn":"x","en":"x"}]}' });
   assert.equal((await app.api('POST', '/api/scenes/S001/predict', { count: 1 })).status, 502);
 });

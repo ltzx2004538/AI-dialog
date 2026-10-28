@@ -3,7 +3,7 @@ import { useTranslation } from '../translation/index.jsx';
 import SceneDialog from './SceneDialog.jsx';
 import SceneItem from './SceneItem.jsx';
 
-export default function SceneList({ scenes, lineCounts, onCreate, onRename, onDelete }) {
+export default function SceneList({ scenes, lineCounts, onCreate, onRename, onCopy, onDelete }) {
   const { t } = useTranslation();
   const [creating, setCreating] = useState(false);
 
@@ -26,6 +26,24 @@ export default function SceneList({ scenes, lineCounts, onCreate, onRename, onDe
     return <SceneDialog title={t('sceneDialog.createTitle')} confirmText={t('sceneDialog.create')} onConfirm={create} onCancel={closeCreate} />;
   }
 
+  function renderScenes() {
+    if (scenes.length === 0) return <p className="empty">{t('scene.empty')}</p>;
+    return (
+      <ul className="scene-items">
+        {scenes.map((scene) => (
+          <SceneItem
+            key={scene.id}
+            scene={scene}
+            lineCount={lineCounts[scene.id] || 0}
+            onRename={onRename}
+            onCopy={onCopy}
+            onDelete={onDelete}
+          />
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <section className="scene-list">
       <div className="scene-list-header">
@@ -35,21 +53,7 @@ export default function SceneList({ scenes, lineCounts, onCreate, onRename, onDe
         </button>
       </div>
 
-      {scenes.length === 0 ? (
-        <p className="empty">{t('scene.empty')}</p>
-      ) : (
-        <ul className="scene-items">
-          {scenes.map((scene) => (
-            <SceneItem
-              key={scene.id}
-              scene={scene}
-              lineCount={lineCounts[scene.id] || 0}
-              onRename={onRename}
-              onDelete={onDelete}
-            />
-          ))}
-        </ul>
-      )}
+      {renderScenes()}
 
       {renderCreateDialog()}
     </section>

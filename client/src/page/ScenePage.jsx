@@ -18,6 +18,7 @@ import {
   fetchStyles,
   predictLines,
   refineLine,
+  translateLine,
   updateCharacter,
   updateLine,
   updateLineOrder,
@@ -76,6 +77,7 @@ export default function ScenePage() {
   const refineProps = {
     styles,
     onRefine: (id, options) => refineLine(id, { ...options, llm: activeLlmId }),
+    onTranslate: (id, options) => translateLine(id, { ...options, llm: activeLlmId }),
   };
 
   const scene = scenes?.find((s) => s.id === sceneId);

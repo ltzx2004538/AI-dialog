@@ -26,10 +26,8 @@ test('a file from before scenes existed: loose lines go into one scene; text/tra
     const scenes = (await app.api('GET', '/api/scenes')).body;
     assert.equal(scenes.length, 1);
     assert.equal(scenes[0].id, 'S001');
-    assert.deepEqual(
-      scenes[0].characters.filter((c) => ['Alex', 'Sam'].includes(c.name)).map((c) => c.name),
-      ['Alex', 'Sam']
-    );
+    // No cast in the old file: only the people already speaking, no built-in names.
+    assert.deepEqual(scenes[0].characters.map((c) => c.name), ['Alex', 'Sam']);
     const lines = (await app.api('GET', '/api/lines')).body;
     assert.deepEqual(lines[0], { id: 'L001', speaker: 'Alex', sceneId: 'S001', cn: '你好', en: 'Hello' });
     assert.deepEqual(lines[1], { id: 'L002', speaker: 'Sam', sceneId: 'S001', cn: '你好啊', en: 'Hi there' });

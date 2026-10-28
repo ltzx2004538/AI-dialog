@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
+import { translationTarget } from '../service/lines.js';
 import { isRefinable, speakerNames } from '../service/speakers.js';
 import { useTranslation } from '../translation/index.jsx';
 import IconButton from './IconButton.jsx';
 import RefineDialog from './RefineDialog.jsx';
 import SpeakerSelect from './SpeakerSelect.jsx';
+import TranslateDialog from './TranslateDialog.jsx';
 
 // How long the copy button shows a check mark after copying.
 const COPIED_MS = 1500;
 
-// refineProps: { styles, onRefine } passed through to RefineDialog.
+// refineProps: { styles, onRefine, onTranslate }: the first two go to RefineDialog, onTranslate to TranslateDialog.
 // cnNames: { [character name]: Chinese name }, shown before the Chinese text.
 // dragHandleProps: pointer and key handlers for the reorder handle (from LineList); dragClass: the row's drag state class.
 export default function LineItem({ line, speakerProps, cnNames, refineProps, dragHandleProps, dragClass, onUpdate, onDelete }) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState('view'); // view | edit | confirm | refine
+  const [mode, setMode] = useState('view'); // view | edit | confirm | refine | translate
   const [speaker, setSpeaker] = useState(line.speaker);
   const [cn, setCn] = useState(line.cn);
   const [en, setEn] = useState(line.en);
@@ -53,6 +55,10 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, dra
     setMode('refine');
   }
 
+  function startTranslate() {
+    setMode('translate');
+  }
+
   // Both languages, each with its speaker name, the way the line is shown.
   async function copyLine() {
     const text = [line.cn && `${names.cn}：${line.cn}`, line.en && `${names.en}: ${line.en}`].filter(Boolean).join('\n');
@@ -72,6 +78,7 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, dra
     onDelete(line.id);
   }
 
+  // Refined or translated { cn, en }; the speaker stays.
   function saveRefined(result) {
     onUpdate(line.id, { speaker: line.speaker, ...result });
     backToView();
@@ -97,6 +104,11 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, dra
   }
 
   // Shown on hover; the delete confirmation takes their place.
+  function renderTranslateButton() {
+    if (!translationTarget(line)) return null;
+    return <IconButton icon="translate" label={t('line.translate')} onClick={startTranslate} />;
+  }
+
   function renderActions() {
     if (mode === 'confirm') {
       return (
@@ -117,6 +129,7 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, dra
       <span className="line-actions">
         <IconButton icon="gear" label={t('line.edit')} onClick={startEdit} />
         {renderRefineButton()}
+        {renderTranslateButton()}
         <IconButton icon={copyIcon} label={copyLabel} onClick={copyLine} />
         <IconButton icon="bin" label={t('line.delete')} danger onClick={askDelete} />
       </span>
@@ -134,6 +147,11 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, dra
         onClose={backToView}
       />
     );
+  }
+
+  function renderTranslateDialog() {
+    if (mode !== 'translate') return null;
+    return <TranslateDialog line={line} onTranslate={refineProps.onTranslate} onSave={saveRefined} onClose={backToView} />;
   }
 
   if (mode === 'edit') {
@@ -169,6 +187,7 @@ export default function LineItem({ line, speakerProps, cnNames, refineProps, dra
       </span>
       {renderActions()}
       {renderRefineDialog()}
+      {renderTranslateDialog()}
     </li>
   );
 }

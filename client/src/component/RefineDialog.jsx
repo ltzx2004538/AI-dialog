@@ -15,7 +15,7 @@ const PREFER_ORIGINAL_STORAGE_KEY = 'dialogue-board.refine.preferOriginal';
 // URLs typed into the instruction are fetched by the server as style references.
 export default function RefineDialog({ line, initialStyles, onRefine, onSave, onClose }) {
   const { t } = useTranslation();
-  const [step, setStep] = useState('styles');
+  const [step, setStep] = useState('styles'); // styles | pick | edit
   const [styles, setStyles] = useState(initialStyles);
   const [offStyles, setOffStyles] = useState([]); // indexes of styles switched off for this refine
   const [instruction, setInstruction] = useState('');
@@ -117,6 +117,96 @@ export default function RefineDialog({ line, initialStyles, onRefine, onSave, on
     />
   );
 
+  function renderOriginalEn() {
+    if (!line.cn || !line.en) return null;
+    return <span className="refine-en">{line.en}</span>;
+  }
+
+  function renderStatus() {
+    if (loading) return <p className="refine-status">{t('refineDialog.loading')}</p>;
+    if (error) return <div className="error">⚠ {t('refineDialog.error', { message: error })}</div>;
+    return null;
+  }
+
+  function renderVersions() {
+    if (!versions.length) return null;
+    return (
+      <ol className="refine-versions">
+        {versions.map((version, index) => (
+          <li key={index} className="refine-version">
+            <span className="refine-style">{usedStyles[index]?.name}</span>
+            <p className="refine-text">{version.cn}</p>
+            <p className="refine-en">{version.en}</p>
+            <div className="refine-actions">
+              <button type="button" onClick={() => pick(index)}>{t('refineDialog.pick')}</button>
+            </div>
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  function renderStylesStep() {
+    return (
+      <>
+        <p className="refine-hint">{t('refineDialog.stylesHint')}</p>
+        <StylesEditor styles={styles} onChange={setStyles} enabled={enabled} onToggle={toggleStyle} />
+        {instructionField}
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>{t('refineDialog.cancel')}</button>
+          <button type="button" className="primary" disabled={!stylesReady} onClick={regenerate}>
+            {t('refineDialog.start')}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function renderPickStep() {
+    return (
+      <>
+        {renderStatus()}
+        <ReferenceList references={references} />
+        {renderVersions()}
+        <div className="modal-actions">
+          <button type="button" disabled={loading} onClick={adjustStyles}>{t('refineDialog.adjustStyles')}</button>
+          <button type="button" disabled={loading} onClick={regenerate}>{t('refineDialog.regenerate')}</button>
+          <button type="button" onClick={onClose}>{t('refineDialog.close')}</button>
+        </div>
+      </>
+    );
+  }
+
+  function renderEditStep() {
+    return (
+      <div className="refine-draft">
+        <button type="button" className="link-button" onClick={backToPick}>{t('refineDialog.backToPick')}</button>
+        <span className="refine-style">{usedStyles[picked]?.name}</span>
+        <label className="modal-label" htmlFor={cnId}>{t('refineDialog.cnLabel')}</label>
+        <textarea id={cnId} className="text-input" rows={2} value={draftCn} onChange={(e) => setDraftCn(e.target.value)} />
+        <label className="modal-label" htmlFor={enId}>{t('refineDialog.enLabel')}</label>
+        <textarea id={enId} className="text-input" rows={2} value={draftEn} onChange={(e) => setDraftEn(e.target.value)} />
+        {instructionField}
+        <p className="refine-ask">{t('refineDialog.askNext')}</p>
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>{t('refineDialog.close')}</button>
+          <button type="button" disabled={!draftReady} onClick={refineAgain}>
+            {t('refineDialog.refineAgain')}
+          </button>
+          <button type="button" className="primary" disabled={!draftReady} onClick={save}>
+            {t('refineDialog.save')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderStep() {
+    if (step === 'pick') return renderPickStep();
+    if (step === 'edit') return renderEditStep();
+    return renderStylesStep();
+  }
+
   return createPortal(
     <div className="modal-backdrop" onMouseDown={closeOnBackdrop} onKeyDown={onKeyDown}>
       <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby={titleId}>
@@ -126,76 +216,9 @@ export default function RefineDialog({ line, initialStyles, onRefine, onSave, on
           <span>
             <strong>{speakerLabel(line.speaker, t)}</strong>: {line.cn || line.en}
           </span>
-          {line.cn && line.en && <span className="refine-en">{line.en}</span>}
+          {renderOriginalEn()}
         </div>
-
-        {step === 'styles' && (
-          <>
-            <p className="refine-hint">{t('refineDialog.stylesHint')}</p>
-            <StylesEditor styles={styles} onChange={setStyles} enabled={enabled} onToggle={toggleStyle} />
-            {instructionField}
-            <div className="modal-actions">
-              <button type="button" onClick={onClose}>{t('refineDialog.cancel')}</button>
-              <button type="button" className="primary" disabled={!stylesReady} onClick={regenerate}>
-                {t('refineDialog.start')}
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === 'pick' && (
-          <>
-            {loading && <p className="refine-status">{t('refineDialog.loading')}</p>}
-            {error && <div className="error">⚠ {t('refineDialog.error', { message: error })}</div>}
-            <ReferenceList references={references} />
-            {versions.length > 0 && (
-              <ol className="refine-versions">
-                {versions.map((version, index) => (
-                  <li key={index} className="refine-version">
-                    <span className="refine-style">{usedStyles[index]?.name}</span>
-                    <p className="refine-text">{version.cn}</p>
-                    <p className="refine-en">{version.en}</p>
-                    <div className="refine-actions">
-                      <button type="button" onClick={() => pick(index)}>{t('refineDialog.pick')}</button>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-            <div className="modal-actions">
-              <button type="button" disabled={loading} onClick={adjustStyles}>{t('refineDialog.adjustStyles')}</button>
-              <button type="button" disabled={loading} onClick={regenerate}>{t('refineDialog.regenerate')}</button>
-              <button type="button" onClick={onClose}>{t('refineDialog.close')}</button>
-            </div>
-          </>
-        )}
-
-        {step === 'edit' && (
-          <div className="refine-draft">
-            <button type="button" className="link-button" onClick={backToPick}>{t('refineDialog.backToPick')}</button>
-            <span className="refine-style">{usedStyles[picked]?.name}</span>
-            <label className="modal-label" htmlFor={cnId}>{t('refineDialog.cnLabel')}</label>
-            <textarea id={cnId} className="text-input" rows={2} value={draftCn} onChange={(e) => setDraftCn(e.target.value)} />
-            <label className="modal-label" htmlFor={enId}>{t('refineDialog.enLabel')}</label>
-            <textarea id={enId} className="text-input" rows={2} value={draftEn} onChange={(e) => setDraftEn(e.target.value)} />
-            {instructionField}
-            <p className="refine-ask">{t('refineDialog.askNext')}</p>
-            <div className="modal-actions">
-              <button type="button" onClick={onClose}>{t('refineDialog.close')}</button>
-              <button type="button" disabled={!draftReady} onClick={refineAgain}>
-                {t('refineDialog.refineAgain')}
-              </button>
-              <button
-                type="button"
-                className="primary"
-                disabled={!draftReady}
-                onClick={save}
-              >
-                {t('refineDialog.save')}
-              </button>
-            </div>
-          </div>
-        )}
+        {renderStep()}
       </div>
     </div>,
     document.body

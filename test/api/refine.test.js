@@ -104,11 +104,31 @@ test('model failures and unusable output become 502', async () => {
   assert.equal(quota.status, 502);
   assert.match(quota.body.error, /429/);
 
+  // Unusable output fails only when the retry is unusable too.
+  app.llm.queueReply({ content: 'Sorry, I cannot help.' });
   app.llm.queueReply({ content: 'Sorry, I cannot help.' });
   assert.equal((await app.api('POST', '/api/lines/L002/refine', {})).status, 502);
 
   app.llm.queueReply({ content: '{"versions":[{"cn":"只有中文"}]}' });
+  app.llm.queueReply({ content: '{"versions":[{"cn":"只有中文"}]}' });
   assert.equal((await app.api('POST', '/api/lines/L002/refine', {})).status, 502);
+});
+
+test('broken JSON (a stray character) is asked for once more; quota errors are not retried', async () => {
+  app.llm.queueReply({ content: '{"versions":[{"cn":"慢点","en":"Slow"酪},{"cn":"乙","en":"B"},{"cn":"丙","en":"C"}]}' });
+  const before = app.llm.requests.length;
+  const { status, body } = await app.api('POST', '/api/lines/L002/refine', {});
+  assert.equal(status, 200);
+  assert.equal(body.versions.length, 3);
+  assert.equal(app.llm.requests.length - before, 2);
+  const log = app.readLog('refine').at(-1);
+  assert.match(log.rejectedOutput, /酪/);
+  assert.doesNotMatch(log.modelOutput, /酪/);
+
+  app.llm.queueReply({ status: 429, message: 'quota' });
+  const quotaBefore = app.llm.requests.length;
+  assert.equal((await app.api('POST', '/api/lines/L002/refine', {})).status, 502);
+  assert.equal(app.llm.requests.length - quotaBefore, 1);
 });
 
 test('JSON wrapped in a code fence or extra words is still accepted', async () => {
@@ -116,4 +136,23 @@ test('JSON wrapped in a code fence or extra words is still accepted', async () =
   const { status, body } = await app.api('POST', '/api/lines/L002/refine', {});
   assert.equal(status, 200);
   assert.deepEqual(body.versions[2], { cn: '丙', en: 'C' });
+});
+
+test('every refine is logged with what was sent and what came back, including failures', async () => {
+  await app.api('POST', '/api/lines/L002/refine', { instruction: 'log me', draft: { cn: '草稿', en: 'Draft' } });
+  const ok = app.readLog('refine').at(-1);
+  assert.equal(ok.lineId, 'L002');
+  assert.equal(ok.instruction, 'log me');
+  assert.deepEqual(ok.line, { speaker: 'Alex', cn: '草稿', en: 'Draft' });
+  assert.equal(ok.styles.length, 3);
+  assert.equal(ok.versions.length, 3);
+  assert.ok(ok.modelOutput);
+  assert.ok(ok.references.some((r) => r.pasted && r.ok));
+  assert.equal(typeof ok.ms, 'number');
+
+  app.llm.queueReply({ status: 429, message: 'quota' });
+  assert.equal((await app.api('POST', '/api/lines/L002/refine', {})).status, 502);
+  const failed = app.readLog('refine').at(-1);
+  assert.match(failed.error, /429/);
+  assert.equal(failed.versions, undefined);
 });

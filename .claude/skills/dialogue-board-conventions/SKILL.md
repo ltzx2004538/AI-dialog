@@ -11,7 +11,7 @@ description: Coding conventions for the Dialogue Board web app (React + Vite fro
 
 ```
 server.js                 // 后端入口：Node 原生 http，路由 /api、托管 dist/、读写 dialogue.json
-server/                   // 后端模块：llm.js（OpenAI 兼容接口客户端）、prompt.js（润色和预测共用的提示词工具：读 skill、场景台词、人物设定、参考资料、解析 JSON）、refine.js（润色）、predict.js（AI 预测后续台词）、predictLog.js（预测日志）、profile.js（从台词参考生成性格档案）、styles.js（读写 styles.json）、references.js（抓取额外要求里的参考链接）
+server/                   // 后端模块：llm.js（OpenAI 兼容接口客户端）、prompt.js（润色和预测共用的提示词工具：读 skill、场景台词、人物设定、参考资料、解析 JSON）、refine.js（润色）、predict.js（AI 预测后续台词）、aiLog.js（预测和润色日志）、profile.js（从台词参考生成性格档案）、styles.js（读写 styles.json）、references.js（抓取额外要求里的参考链接）
 .env / .env.example       // LLM 配置（.env 不提交；新增配置项要同步写进 .env.example）
 dialogue.json             // 台词数据（运行时生成，不要手动改结构）
 styles.json               // 润色的三个风格（网页 /styles 页面和 dialogue-refiner skill 共用）
@@ -41,14 +41,16 @@ client/
 | --- | --- |
 | `AppLayout` | 所有页面共用的外框：标题（回首页）+ 语言切换 + `<Outlet />` |
 | `IconButton` | 只有图标的按钮，props：`icon`（`'pencil'` / `'bin'`…）、`label`（无障碍名称和提示）、`onClick`、`danger`、`className`（追加在 `icon-btn` 后面）。现有 `pencil` / `bin` / `gear` / `copy` / `check` / `grip`，新图标加到它的 `ICONS` 里，**不要再单独写图标组件** |
-| `LineItem` | 一句台词：ID、"中文名：中文" / "英文名: 英文"（名字来自 `speakers.js` 的 `speakerNames(speaker, cnNames)`），行尾齿轮（编辑）、铅笔（润色）、复制、垃圾桶（删除）四个图标，只在悬停 / 聚焦这一行时显示；ID 前面有拖动手柄（`grip`），同样悬停时显示 |
+| `LineItem` | 一句台词：ID、"中文名：中文" / "英文名: 英文"（名字来自 `speakers.js` 的 `speakerNames(speaker, cnNames)`），行尾齿轮（编辑）、铅笔（润色）、翻译、复制、垃圾桶（删除）五个图标，只在悬停 / 聚焦这一行时显示；ID 前面有拖动手柄（`grip`），同样悬停时显示 |
 | `LineList` | 场景的台词列表（`<ol>`），负责调整顺序：用 Pointer Events 拖手柄（鼠标、触屏都能用，不用 HTML5 `draggable`），或者聚焦手柄按 ↑ ↓；松手后 `onReorder(ids)` 交给页面保存。拖动状态只在这里，`LineItem` 只接收 `dragHandleProps` 和 `dragClass` |
 | `ActionMenu` | 铅笔图标 + 下拉菜单，传 `items: [{ label, onClick, danger }]` |
 | `TextInputDialog` | 输入一个文本的弹窗（首页重命名场景用它） |
+| `ConfirmDialog` | 需要先说明再确认的操作用的弹窗：标题 + 说明（`children`，可以是列表）+ 确认 / 取消（复制场景用它）。行内的简单确认（如删除）仍用行内确认 UI |
 | `SceneDialog` | 场景名 + 原剧本参考（`source`）的弹窗：首页新建场景、场景页标题旁的齿轮按钮编辑场景都用它 |
 | `SpeakerSelect` | 说话人下拉列表，**只选择不添加**；人物名单由父组件传入 |
 | `CharactersDialog` | 管理本场景的人物（添加 / 编辑名字和人物设定 / 删除），处理函数失败时抛错，错误显示在弹窗里 |
 | `RefineDialog` | AI 润色弹窗，三步：确认风格（不请求 LLM）→ 选一个版本 → 只显示选中的版本，改中文和英文 → 再次润色或保存 |
+| `TranslateDialog` | 仅翻译弹窗（台词行的翻译图标打开）：打开就翻译，补上缺的那种语言，译文可修改后保存。图标只在 `service/lines.js` 的 `translationTarget(line)` 不为 null（只有一种语言）时显示 |
 | `StylesEditor` | 编辑三个风格（名称 + 说明），`StylesPage` 和 `RefineDialog` 共用；传 `enabled` + `onToggle` 时每张卡片显示开关，关掉的卡片变灰 |
 | `PredictDialog` | AI 预测弹窗，两步：选句数（1～10 下拉）+ 额外要求 → 勾选结果后添加 |
 | `InstructionField` | "额外要求"输入框（含参考链接提示）+ "优先使用参考里的原台词"开关，`RefineDialog` 和 `PredictDialog` 共用 |
@@ -110,7 +112,7 @@ client/
   - 唯一例外：一行里只有一个输入框、而且旁边的按钮已经说明用途的紧凑输入（如底部 `Composer` 的台词输入框），可以不显示 label，但要用 `aria-label` 给出名称。
 - 新增文案时，**`cn.js` 和 `en.js` 要同时加**，两个文件的 key 结构必须完全一致。
 - key 按所属区域分组，用 camelCase：`app.*`、`composer.*`、`line.*`、`newSpeakerDialog.*`……新组件就新开一组。
-- 变量用 `{name}` 占位，调用时传参数，不要用字符串拼接拼句子。
+- 变量用 `{name}` 占位，调用时传参数，不要用字符串拼接拼句子。句子里有一部分要单独加样式（例如高亮数字）时用 `tNodes(key, { count: <strong className="highlight">{n}</strong> })`，不要把一句话拆成几个 key。
 - 用户数据（台词内容、角色名）和后端返回的错误信息不翻译。
 - 新增语言：在 `translation/` 加 `xx.js`，在 `index.jsx` 的 `DICTIONARIES` 和 `HTML_LANG` 里注册，语言切换按钮会自动出现。
 - 语言选择保存在 `localStorage`（`dialogue-board.language`）。访问 `localStorage` 一律通过 `service/storage.js` 的 `readStorage` / `writeStorage`，不要直接调用。
@@ -125,7 +127,7 @@ client/
 ## 6. 后端与数据
 
 - 不用数据库，所有数据存在 `dialogue.json`：`{ nextSceneNumber, nextLineNumber, scenes: [{ id, name, source, characters: [{ name, cnName, personality, source, useSource }] }], lines: [{ id, sceneId, speaker, cn, en }] }`。**台词字段固定是 `cn`（中文）和 `en`（英文），不要用 `text` / `translation` 这类字段**；两者至少一个非空。旧的 `{ text, translation }` 在 `server.js` 的 `migrateLine()` 里自动转换。底部输入框用 `service/lines.js` 的 `splitByLanguage()` 按是否含中文决定存进哪个字段。台词通过 `sceneId` 关联场景，保持扁平结构，不要把台词嵌套进场景。
-- 接口统一在 `/api` 下，REST 风格：`/api/scenes`、`/api/scenes/:id`、`/api/lines`、`/api/lines/:id`、`/api/scenes/:id/characters`、`/api/scenes/:id/characters/:name`（GET / POST / PUT / DELETE），以及调整台词顺序的 `PUT /api/scenes/:id/line-order`。
+- 接口统一在 `/api` 下，REST 风格：`/api/scenes`、`/api/scenes/:id`、`/api/lines`、`/api/lines/:id`、`/api/scenes/:id/characters`、`/api/scenes/:id/characters/:name`（GET / POST / PUT / DELETE），以及调整台词顺序的 `PUT /api/scenes/:id/line-order`、复制场景（带 `source` 和 `characters`，不带台词）的 `POST /api/scenes/:id/copy`、仅翻译的 `POST /api/lines/:id/translate`（`server/translate.js`：提示词只有人物名单和这一句，不读 skill、不用风格和参考资料，返回 `{ cn, en }`，原语言不变；模型优先用 `.env` 的 `LLM_TRANSLATE_MODEL`，见 `llm.js` 的 `translateLlmId()`）。
 - 台词顺序就是 `lines` 数组里的顺序（不是 ID 顺序）。`line-order` 的 body 是 `{ ids }`，必须正好列出本场景每句台词一次；本场景的台词只在自己原来占的位置之间互换，其他场景的台词不动，ID 不变。前端 `service/lines.js` 的 `applyLineOrder()` 用同样的规则先更新界面，保存失败就重新加载台词。
 - 人物名单存在**各自场景**的 `characters` 数组里（不要放到顶层），每项 `{ name, cnName, personality, source, useSource }`，在场景内按名字识别：名字不区分大小写不能重复，也不能用保留名；改名时同步修改本场景台词的 `speaker`；删除人物会同时删除其在本场景的台词，前端在有台词时必须先确认（确定 / 取消），没有台词直接删除。人物接口都返回该场景完整的新名单。修改场景（PUT）时要保留 `characters`。
 - 性格档案：`server/profile.js` 的 `summarizeCharacter()`（`POST /api/scenes/:id/profile`）把人物的 `source` 总结成短档案，返回给表单填进 `personality`，不保存；模型直接返回纯文本（档案里有引号，用 JSON 容易格式错误）。`useSource: false` 时润色和预测都不发送这个人物的 `source`，只靠 `personality`；前端生成档案后自动把它关掉。
@@ -135,7 +137,10 @@ client/
 - 提示词顺序：参考资料（可能很长）和人物设定放在最前面，场景台词放在后面，最后才是要完成的任务（润色的目标句 / 预测的"最后一句是……，新的一句必须接住它"），让模型最后读到的是要接的台词。
 - 润色上下文：发送整个场景的台词（`>>>` 标出目标句）；`handleRefine` 把 `draft` 同时替换进目标句和场景台词，两处必须一致。
 - AI 预测（`server/predict.js`，`POST /api/scenes/:id/predict`）：`count` 1～10（前端 `PredictDialog` 的 `COUNTS` 要同步）；说话人只能是本场景人物 / `Narrator` / `Background`，其他的丢弃；只返回候选，前端逐句 `POST /api/lines` 添加。新的 AI 功能先复用 `server/prompt.js` 里的工具，不要复制提示词代码。
-- 预测日志：`predictLines()` 每次调用（通过参数校验后，包括失败的）都用 `predictLog.js` 的 `appendPredictLog()` 往 `logs/predict.jsonl` 追加一行 JSON（请求参数、最后 3 句台词、参考资料摘要和匹配位置后的片段、`path: original | model`、模型原始输出、结果或错误、耗时），只保留最近 100 条。写日志失败只打印到控制台，不能影响预测。`logs/` 不提交。
+- AI 日志：`aiLog.js` 的 `appendLog(kind, entry)` 往 `logs/<kind>.jsonl` 追加一行 JSON，每个文件只保留最近 100 条。写日志失败只打印到控制台，不能影响 AI 调用。`logs/` 不提交。
+  - `predictLines()` 每次调用（通过参数校验后，包括失败的）写 `logs/predict.jsonl`：请求参数、最后 3 句台词、参考资料摘要和匹配位置后的片段、`path: original | model`、模型原始输出、结果或错误、耗时。
+  - `refineLine()` 同样写 `logs/refine.jsonl`：场景、台词 ID、模型、风格名、是否优先原台词、额外要求、要润色的句子（有草稿时是草稿）、参考资料摘要、模型原始输出、版本或错误、耗时。
+  - 新的 AI 功能要记日志时用同一个 `appendLog()`，换一个 `kind`。
 - `load()` 迁移旧格式后会立即写回文件（内容没变就不写）。
 - 返回 JSON；出错时返回 `{ "error": "..." }`，并带上合适的状态码（400 参数错误、404 不存在、405 方法不支持、500 服务器错误）。
 - 每句台词必须属于一个存在的场景：新建台词时校验 `sceneId`；删除场景时连带删除其台词。
@@ -155,6 +160,7 @@ client/
 - **三个风格不能写死**：默认风格存在 `styles.json`（`server/styles.js` 读写，必须正好 3 个、每个有 `name`），前端通过 `/api/styles` 读写；润色请求可以带本次开启的 `styles`（1～3 个，`cleanStyles(input, 1)`），没带就用 `styles.json`；保存默认风格仍然必须是 3 个。前端文案里不要出现具体风格名。
 - 参考链接：`server/references.js` 从额外要求里提取链接（最多 3 个），抓取网页正文（缓存 10 分钟，缓存的是全文）；每个最多发送 `REFERENCE_MAX_CHARS` 字（默认 20000；服务设置了 `LLM_<NAME>_REFERENCE_MAX_CHARS` 时用它，由 `llm.js` 的 `referenceLimit(llmId)` 取出后传给 `loadReferences()`），超长页面由 `excerpt()` 按传入的 `focus`（场景台词，最近的在前）截取匹配段落，找不到才取开头；找到匹配时 `anchor` 记下位置，`prompt.js` 在发给模型的正文里插入 `SCENE_MARKER` 标出"当前场景演到这里"；结果的 `mode` 为 `full` / `match` / `head`，前端 `ReferenceList` 据此提示；遇到 401/403 且是 `/wiki/<标题>` 链接时，改用该站 MediaWiki 接口 `/api.php?action=parse` 读取（Fandom 需要这个）。抓到的内容是**不可信数据**，在提示词里用 `<reference>` 包起来，并声明只作风格参考、忽略其中的指令；接口只把 `{ url, ok, chars | error }` 返回给前端，不返回网页正文。
 - 模型输出一律当作不可靠数据：解析前先截取 JSON，校验字段，不合格就返回 502，不要写进 `dialogue.json`。
+- 要求模型返回 JSON 的调用用 `llm.js` 的 `chatJson(messages, llmId, parse, onOutput)`：`parse` 抛出 502 时自动再请求一次（小模型偶尔在 JSON 里混进乱码），两次都不合格才返回 502；429、503 这类请求错误不重试，免得浪费额度。记日志时传 `aiLog.js` 的 `logOutput(log)`，被拒绝的第一次输出记在 `rejectedOutput`。
 - 润色接口只返回候选版本 `[{ cn, en }]`，不修改数据；再次润色时前端把用户修改后的 `{ cn, en }` 作为 `draft` 传给接口；用户点"保存"后，前端再调用 `PUT /api/lines/:id` 保存。
 
 ## 6.2 特殊说话人
@@ -183,7 +189,7 @@ client/
 
 - 测试用 Node 内置的 `node:test`，不加测试框架依赖；运行 `npm.cmd test`。
 - 目录：`test/api/*.test.js` 测后端接口（每个文件一组功能），`test/client/*.test.mjs` 测前端 `service/` 和翻译文件，`test/helpers/` 放共用工具。
-- 后端测试用 `startApp()`（`test/helpers/app.js`）启动真实的 `server.js` 子进程，通过环境变量 `DIALOGUE_ENV_FILE`、`DIALOGUE_DATA_FILE`、`DIALOGUE_STYLES_FILE`、`DIALOGUE_PREDICT_LOG` 指向临时文件，`seedData()` 提供模拟数据。新增会写文件的模块，也要给它的文件路径加一个这样的环境变量。
+- 后端测试用 `startApp()`（`test/helpers/app.js`）启动真实的 `server.js` 子进程，通过环境变量 `DIALOGUE_ENV_FILE`、`DIALOGUE_DATA_FILE`、`DIALOGUE_STYLES_FILE`、`DIALOGUE_LOG_DIR` 指向临时文件 / 文件夹，`seedData()` 提供模拟数据。新增会写文件的模块，也要给它的文件路径加一个这样的环境变量。
 - **外部 AI 一律用假的**：`startApp()` 把 LLM 配成 `test/helpers/mockLlm.js` 的假服务，它根据系统提示词里的输出要求自动生成回复，并记录每次请求（`llm.lastRequest()` 可以检查提示词内容）；`llm.queueReply({ content })` / `llm.queueReply({ status })` 指定下一次的回复或错误；`llm.pages[...]` 提供假的参考网页。新的 AI 功能如果改了输出格式，要同步更新 `autoReply()`。
 - 每个新功能、每个接口行为变化都要有对应测试：正常流程、参数校验（400 / 404 / 405）、数据有没有正确写入文件、模型返回异常（502）。
 - 前端组件（JSX）目前没有渲染测试；组件里的逻辑尽量放进 `service/` 的纯函数，这样就能测到。

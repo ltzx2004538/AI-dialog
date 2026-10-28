@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import SceneList from '../component/SceneList.jsx';
-import { createScene, deleteScene, fetchLines, fetchScenes, updateScene } from '../service/api.js';
+import { copyScene, createScene, deleteScene, fetchLines, fetchScenes, updateScene } from '../service/api.js';
 
 export default function HomePage() {
   const [scenes, setScenes] = useState([]);
@@ -44,6 +44,17 @@ export default function HomePage() {
       setScenes((prev) => prev.map((s) => (s.id === id ? updated : s)));
     });
 
+  // Shown right after the original, where the server puts it too.
+  const handleCopy = (id, name) =>
+    run(async () => {
+      const created = await copyScene(id, name);
+      setScenes((prev) => {
+        const next = [...prev];
+        next.splice(prev.findIndex((s) => s.id === id) + 1, 0, created);
+        return next;
+      });
+    });
+
   const handleDelete = (id) =>
     run(async () => {
       await deleteScene(id);
@@ -51,10 +62,22 @@ export default function HomePage() {
       setLines((prev) => prev.filter((l) => l.sceneId !== id));
     });
 
+  function renderError() {
+    if (!error) return null;
+    return <div className="error">⚠ {error}</div>;
+  }
+
   return (
     <>
-      {error && <div className="error">⚠ {error}</div>}
-      <SceneList scenes={scenes} lineCounts={lineCounts} onCreate={handleCreate} onRename={handleRename} onDelete={handleDelete} />
+      {renderError()}
+      <SceneList
+        scenes={scenes}
+        lineCounts={lineCounts}
+        onCreate={handleCreate}
+        onRename={handleRename}
+        onCopy={handleCopy}
+        onDelete={handleDelete}
+      />
     </>
   );
 }

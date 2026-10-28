@@ -46,6 +46,14 @@ function referenceLimit(llmId) {
   return findLlm(llmId).referenceMaxChars;
 }
 
+// Translating one line doesn't need the best model, so LLM_TRANSLATE_MODEL (a cheap one) wins over the
+// dropdown choice; a name that isn't configured is ignored rather than breaking translation.
+function translateLlmId(llmId) {
+  const preferred = (process.env.LLM_TRANSLATE_MODEL || '').trim();
+  if (preferred && listLlms().some((l) => l.id === preferred)) return preferred;
+  return llmId;
+}
+
 // Safe to send to the browser: no URLs or keys.
 function publicLlms() {
   return listLlms().map(({ id, provider, model }) => ({ id, provider, model }));
@@ -78,4 +86,22 @@ async function chat(messages, llmId) {
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-module.exports = { chat, httpError, publicLlms, referenceLimit };
+// Small models now and then slip a stray character into otherwise good JSON, so an answer that parse() rejects
+// is asked for once more. Request errors (429 quota, 503 busy) come from chat() and are not retried: that would
+// only spend quota. onOutput(content, attempt) sees every raw answer, for the logs.
+async function chatJson(messages, llmId, parse, onOutput) {
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const content = await chat(messages, llmId);
+    if (onOutput) onOutput(content, attempt);
+    try {
+      return parse(content);
+    } catch (err) {
+      if (err.status !== 502) throw err;
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
+module.exports = { chat, chatJson, httpError, publicLlms, referenceLimit, translateLlmId };

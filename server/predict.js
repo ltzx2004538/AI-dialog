@@ -1,6 +1,6 @@
 // Predicts the next lines of a scene ("AI 预测"). Uses the same skill voice rules as refining.
-const { chat, httpError, referenceLimit } = require('./llm.js');
-const { appendPredictLog, logReferences } = require('./predictLog.js');
+const { chatJson, httpError, referenceLimit } = require('./llm.js');
+const { appendLog, logOutput, logReferences } = require('./aiLog.js');
 const { loadReferences } = require('./references.js');
 const {
   BACKGROUND,
@@ -103,6 +103,12 @@ function originalLines(references, count, speakers) {
   return lines;
 }
 
+function parseTranslations(content) {
+  const cn = parseJsonObject(content).cn;
+  if (!Array.isArray(cn)) throw httpError(502, `LLM returned an unexpected format: ${content.slice(0, 300)}`);
+  return cn;
+}
+
 // Only the Chinese is left to the model; the English stays verbatim from the source.
 // log: the prediction's log entry; gets the raw model output.
 async function translateLines(lines, scene, llmId, log) {
@@ -114,16 +120,15 @@ async function translateLines(lines, scene, llmId, log) {
 You are called by an app, not a chat. Translate each original English line below into Chinese, keeping each speaker's voice.
 Return a single JSON object and nothing else: {"cn":["..."]} with exactly ${lines.length} string${lines.length > 1 ? 's' : ''}, in order.`;
   const source = lines.map((l, i) => `${i + 1}. ${l.speaker}: ${l.en}`).join('\n');
-  const content = await chat(
+  const cn = await chatJson(
     [
       { role: 'system', content: skillText() + rules },
       { role: 'user', content: `Scene: ${scene.name}\n\nLines to translate:\n${source}` },
     ],
-    llmId
+    llmId,
+    parseTranslations,
+    logOutput(log)
   );
-  log.modelOutput = content;
-  const cn = parseJsonObject(content).cn;
-  if (!Array.isArray(cn)) throw httpError(502, `LLM returned an unexpected format: ${content.slice(0, 300)}`);
   return lines.map((l, i) => ({ speaker: l.speaker, cn: String(cn[i] || '').trim(), en: l.en }));
 }
 
@@ -131,7 +136,7 @@ Return a single JSON object and nothing else: {"cn":["..."]} with exactly ${line
 // scene.source (the scene's original script) is always a reference. Links in the instruction are fetched first,
 // then links in the scene's source, then the sources of characters already speaking in the scene.
 // preferOriginal: continue with the references' own lines when they contain this scene (e.g. a game transcript).
-// Every call that passes validation is logged (see predictLog.js), including failures.
+// Every call that passes validation is logged (logs/predict.jsonl, see aiLog.js), including failures.
 async function predictLines({ scene, sceneLines, count, instruction, llmId, preferOriginal }) {
   if (!Number.isInteger(count) || count < MIN_COUNT || count > MAX_COUNT) {
     throw httpError(400, `count must be ${MIN_COUNT}-${MAX_COUNT}`);
@@ -156,7 +161,7 @@ async function predictLines({ scene, sceneLines, count, instruction, llmId, pref
     throw err;
   } finally {
     log.ms = Date.now() - started;
-    appendPredictLog(log);
+    appendLog('predict', log);
   }
 }
 
@@ -183,15 +188,16 @@ async function predictWithLog({ scene, sceneLines, count, instruction, llmId, pr
     }
   }
   log.path = 'model';
-  const content = await chat(
+  const lines = await chatJson(
     [
       { role: 'system', content: skillText() + outputRules(count, speakers) },
       { role: 'user', content: userPrompt(scene, sceneLines, count, instruction, references, preferOriginal) },
     ],
-    llmId
+    llmId,
+    (content) => parseLines(content, count, speakers),
+    logOutput(log)
   );
-  log.modelOutput = content;
-  return { lines: parseLines(content, count, speakers), references: publicReferences(references) };
+  return { lines, references: publicReferences(references) };
 }
 
 module.exports = { predictLines, MIN_COUNT, MAX_COUNT };

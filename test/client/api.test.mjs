@@ -26,6 +26,8 @@ test('scenes', async () => {
   assert.equal(last().headers['Content-Type'], 'application/json');
   await api.updateScene('S001', { name: 'R2' });
   assert.deepEqual([last().method, last().url], ['PUT', '/api/scenes/S001']);
+  await api.copyScene('S001', 'Rooftop II');
+  assert.deepEqual([last().method, last().url, last().body], ['POST', '/api/scenes/S001/copy', { name: 'Rooftop II' }]);
   await api.deleteScene('S001');
   assert.deepEqual([last().method, last().url], ['DELETE', '/api/scenes/S001']);
 });
@@ -63,6 +65,9 @@ test('refine and predict pass the options the dialogs collect', async () => {
   await api.refineLine('L002', { draft: { cn: 'x', en: 'y' }, instruction: 'i', styles, llm: 'mock/a', preferOriginal: true });
   assert.equal(last().url, '/api/lines/L002/refine');
   assert.deepEqual(last().body, { draft: { cn: 'x', en: 'y' }, instruction: 'i', styles, llm: 'mock/a', preferOriginal: true });
+  await api.translateLine('L002', { draft: { cn: 'x', en: '' }, to: 'en', llm: 'mock/a' });
+  assert.deepEqual([last().method, last().url], ['POST', '/api/lines/L002/translate']);
+  assert.deepEqual(last().body, { draft: { cn: 'x', en: '' }, to: 'en', llm: 'mock/a' });
   await api.predictLines('S001', { count: 3, instruction: '', llm: 'mock/a', preferOriginal: false });
   assert.equal(last().url, '/api/scenes/S001/predict');
   assert.deepEqual(last().body, { count: 3, instruction: '', llm: 'mock/a', preferOriginal: false });

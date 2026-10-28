@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, Fragment, useContext, useEffect, useMemo, useState } from 'react';
 import { readStorage, writeStorage } from '../service/storage.js';
 import cn from './cn.js';
 import en from './en.js';
+import { fillTemplate, splitTemplate } from './template.js';
 
 const DICTIONARIES = { cn, en };
 export const LANGUAGES = Object.keys(DICTIONARIES);
@@ -25,12 +26,14 @@ export function LanguageProvider({ children }) {
   const [language, setLanguage] = useState(readStoredLanguage);
 
   const value = useMemo(() => {
-    // t('scene.lineCount', { count: 3 }) -> '3 句台词'. Falls back to Chinese, then to the key itself.
-    const t = (key, params = {}) => {
-      const template = lookup(DICTIONARIES[language], key) ?? lookup(DICTIONARIES[DEFAULT_LANGUAGE], key) ?? key;
-      return template.replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match));
-    };
-    return { language, setLanguage, t };
+    // Falls back to Chinese, then to the key itself.
+    const template = (key) => lookup(DICTIONARIES[language], key) ?? lookup(DICTIONARIES[DEFAULT_LANGUAGE], key) ?? key;
+    // t('scene.lineCount', { count: 3 }) -> '3 句台词'.
+    const t = (key, params) => fillTemplate(template(key), params);
+    // tNodes('x', { count: <strong>3</strong> }): params may be elements, for styling part of a sentence.
+    const tNodes = (key, params) =>
+      splitTemplate(template(key), params).map((part, i) => <Fragment key={i}>{part}</Fragment>);
+    return { language, setLanguage, t, tNodes };
   }, [language]);
 
   useEffect(() => {

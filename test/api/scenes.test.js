@@ -32,7 +32,8 @@ test('POST /api/scenes creates a scene with the next ID, a source and a cast', a
   assert.equal(body.id, 'S003');
   assert.equal(body.name, 'Train');
   assert.equal(body.source, 'Alex: Go.\nSam: Now?');
-  assert.ok(Array.isArray(body.characters));
+  // The cast is the writer's own: a new scene starts with nobody in it.
+  assert.deepEqual(body.characters, []);
   assert.equal(app.readData().nextSceneNumber, 4);
 });
 
@@ -44,11 +45,12 @@ test('POST /api/scenes without source stores an empty one', async () => {
 
 test('PUT /api/scenes/:id renames and keeps the source and cast when source is left out', async () => {
   await app.api('PUT', '/api/scenes/S003', { name: 'Train', source: 'original script' });
+  await app.api('POST', '/api/scenes/S003/characters', { name: 'Kim' });
   const { status, body } = await app.api('PUT', '/api/scenes/S003', { name: 'Night train' });
   assert.equal(status, 200);
   assert.equal(body.name, 'Night train');
   assert.equal(body.source, 'original script');
-  assert.ok(body.characters.length > 0);
+  assert.deepEqual(body.characters.map((c) => c.name), ['Kim']);
 });
 
 test('PUT /api/scenes/:id can clear the source', async () => {

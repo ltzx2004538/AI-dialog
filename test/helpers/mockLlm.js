@@ -22,6 +22,9 @@ function autoReply(system) {
     return JSON.stringify({ lines });
   }
   if (/voice profile/.test(system)) return '性格：冷静、克制\n说话方式：句子短';
+  if (/^Translate only/.test(system)) {
+    return JSON.stringify({ text: /into English/.test(system) ? 'Translated into English.' : '翻译成的中文。' });
+  }
   return 'unrecognized request';
 }
 

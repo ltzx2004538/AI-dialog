@@ -296,7 +296,10 @@ button.primary, button.danger { background: var(--accent); color: var(--accent-t
 }
 .scene-name { font-weight: 600; font-size: 16px; overflow-wrap: anywhere; }
 .scene-meta { font-size: 12px; color: var(--muted); }
-.scene-item .actions { margin-top: 8px; }
+.scene-actions { display: flex; gap: 4px; margin-top: 8px; }
+.modal-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+/* Same colour as the primary button, for what the writer must not miss (the cast count, "lines are not copied"). */
+.highlight { color: var(--accent); }
 
 .scene-confirm {
   grid-column: 1 / -1;
@@ -347,6 +350,11 @@ button.primary, button.danger { background: var(--accent); color: var(--accent-t
   max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
+/* A long dialog scrolls instead of shrinking its parts: .text-input has flex: 1 (basis 0) for rows,
+   which in this column would squash textareas (the extra instruction) to a sliver. */
+.modal-wide > *,
+.refine-draft > * { flex-shrink: 0; }
+.modal textarea.text-input { flex: none; }
 
 .refine-original {
   margin: 0 0 8px;
@@ -384,7 +392,8 @@ button.primary, button.danger { background: var(--accent); color: var(--accent-t
   gap: 6px;
 }
 .refine-ask { margin: 8px 0 0; font-weight: 600; }
-.refine-hint { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.refine-hint,
+.modal-hint { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
 
 .refine-references {
   list-style: none;

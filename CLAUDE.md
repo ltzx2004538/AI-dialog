@@ -34,7 +34,7 @@
 | `npm.cmd test` | 跑全部测试（Node 自带的 `node:test`，不需要额外依赖），推送前必须通过 |
 
 - 开发时两个进程保持运行，改代码不用手动重启；只有改了 `.env`、`package.json`、`vite.config.js` 才需要重启。
-- AI 预测日志在 `logs/predict.jsonl`（只保留最近 100 次），分析预测结果时先看它。
+- AI 日志在 `logs/`：预测 `predict.jsonl`、润色 `refine.jsonl`（各保留最近 100 次），分析预测或润色失败时先看它们。
 
 ## 开发约束
 

@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// Tests point DIALOGUE_ENV_FILE / DIALOGUE_DATA_FILE (and the ones in server/styles.js, server/predictLog.js)
+// Tests point DIALOGUE_ENV_FILE / DIALOGUE_DATA_FILE (and the ones in server/styles.js, server/aiLog.js)
 // at temporary files, so they never read the real API keys or touch the writer's data.
 const ENV_FILE = process.env.DIALOGUE_ENV_FILE || path.join(__dirname, '.env');
 
@@ -20,6 +20,7 @@ const { predictLines } = require('./server/predict.js');
 const { summarizeCharacter } = require('./server/profile.js');
 const { refineLine } = require('./server/refine.js');
 const { cleanStyles, loadStyles, saveStyles } = require('./server/styles.js');
+const { translateLine } = require('./server/translate.js');
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = process.env.DIALOGUE_DATA_FILE || path.join(__dirname, 'dialogue.json');
@@ -32,7 +33,6 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
-const DEFAULT_CHARACTERS = ['Leon', 'Ada', 'Claire', 'Chris', 'Jill', 'Wesker', 'Sherry', 'Ashley', 'Luis', 'Hunnigan', 'Krauser'];
 // Reserved speakers, not characters; keep in sync with client/src/service/speakers.js.
 const SPECIAL_SPEAKERS = ['Background', 'Narrator'];
 
@@ -61,8 +61,9 @@ function migrate(data) {
     };
   }
   data.lines = data.lines.map(migrateLine);
-  // Each scene keeps its own cast. Older files had none, or one shared top-level list of names: seed every scene from it.
-  const shared = data.characters || DEFAULT_CHARACTERS;
+  // Each scene keeps its own cast. Older files had one shared top-level list of names (seed every scene from it),
+  // or none at all: then only the people already speaking in the scene, since the cast is the writer's own.
+  const shared = data.characters || [];
   delete data.characters;
   data.scenes = data.scenes.map((s) =>
     s.characters ? s : { ...s, characters: seedCast(shared, data.lines.filter((l) => l.sceneId === s.id)) }
@@ -174,7 +175,7 @@ async function handleScenes(req, res, data, id) {
   if (!id && req.method === 'POST') {
     const scene = cleanScene(await readBody(req));
     if (!scene) return send(res, 400, { error: 'name is required' });
-    const created = { id: makeId('S', data.nextSceneNumber++), source: '', ...scene, characters: seedCast(DEFAULT_CHARACTERS, []) };
+    const created = { id: makeId('S', data.nextSceneNumber++), source: '', ...scene, characters: [] };
     data.scenes.push(created);
     save(data);
     return send(res, 201, created);
@@ -199,6 +200,23 @@ async function handleScenes(req, res, data, id) {
   }
 
   send(res, 405, { error: 'method not allowed' });
+}
+
+// A big scene continued in a new one: same source and cast (personalities, profiles), none of the lines.
+// The copy goes right after the original, so the scene list still reads in story order.
+async function handleSceneCopy(req, res, data, scene) {
+  if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
+  const body = cleanScene(await readBody(req));
+  if (!body) return send(res, 400, { error: 'name is required' });
+  const created = {
+    id: makeId('S', data.nextSceneNumber++),
+    name: body.name,
+    source: scene.source,
+    characters: scene.characters.map((c) => ({ ...c })),
+  };
+  data.scenes.splice(data.scenes.indexOf(scene) + 1, 0, created);
+  save(data);
+  send(res, 201, created);
 }
 
 async function handleLines(req, res, data, id) {
@@ -274,6 +292,24 @@ async function handleLineOrder(req, res, data, scene) {
   data.lines = data.lines.map((l) => (l.sceneId === scene.id ? byId.get(ids[next++]) : l));
   save(data);
   send(res, 200, data.lines.filter((l) => l.sceneId === scene.id));
+}
+
+// "Translate only": body.to ('cn' | 'en') is written from the other language; body.draft ({ cn, en }) is the writer's
+// edited text in the dialog. Returns { cn, en }; nothing is saved until the writer saves in the dialog.
+async function handleTranslate(req, res, data, id) {
+  if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
+  const target = data.lines.find((l) => l.id === id);
+  if (!target) return send(res, 404, { error: `line ${id} not found` });
+  const body = await readBody(req);
+  const draft = body.draft && cleanLine({ speaker: target.speaker, ...body.draft });
+  const result = await translateLine({
+    scene: data.scenes.find((s) => s.id === target.sceneId),
+    target,
+    draft: draft || undefined,
+    to: body.to,
+    llmId: body.llm || undefined,
+  });
+  send(res, 200, result);
 }
 
 // Drafts a character's personality from their line reference; nothing is saved (the writer reviews it in the form).
@@ -361,11 +397,21 @@ async function handleApi(req, res, url) {
   const refine = url.pathname.match(/^\/api\/lines\/([^/]+)\/refine$/);
   if (refine) return handleRefine(req, res, data, decodeURIComponent(refine[1]));
 
+  const translate = url.pathname.match(/^\/api\/lines\/([^/]+)\/translate$/);
+  if (translate) return handleTranslate(req, res, data, decodeURIComponent(translate[1]));
+
   const predict = url.pathname.match(/^\/api\/scenes\/([^/]+)\/predict$/);
   if (predict) {
     const scene = data.scenes.find((s) => s.id === decodeURIComponent(predict[1]));
     if (!scene) return send(res, 404, { error: `scene ${predict[1]} not found` });
     return handlePredict(req, res, data, scene);
+  }
+
+  const copy = url.pathname.match(/^\/api\/scenes\/([^/]+)\/copy$/);
+  if (copy) {
+    const scene = data.scenes.find((s) => s.id === decodeURIComponent(copy[1]));
+    if (!scene) return send(res, 404, { error: `scene ${copy[1]} not found` });
+    return handleSceneCopy(req, res, data, scene);
   }
 
   const lineOrder = url.pathname.match(/^\/api\/scenes\/([^/]+)\/line-order$/);
