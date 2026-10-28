@@ -176,7 +176,7 @@ client/
 - PowerShell 里用 `npm.cmd` / `npx.cmd`（本机禁止运行 `.ps1` 脚本）。
 - 日常启动：`npm.cmd start`（先构建再启动服务），打开 http://localhost:3000 。
 - 开发热更新：一个终端运行 `npm.cmd run server:watch`（`node --watch`，改了 `server.js` / `server/*.js` 自动重启；改 `.env` 仍需手动重启），另一个运行 `npm.cmd run dev`（Vite 热更新），打开 http://localhost:5173 。
-- 服务运行期间改了前端代码，只需运行 `npx.cmd vite build`，再刷新页面即可，不用重启服务；改了 `server.js` 需要重启服务。
+- 用 `npm.cmd start` 运行（没开 Vite）时改了前端代码，运行 `npx.cmd vite build` 再刷新页面即可；这种方式下改了 `server.js` 需要重启服务。
 
 ## 9. 完成前检查清单
 
