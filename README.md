@@ -81,6 +81,13 @@ npm start
 
 然后打开 http://localhost:3000 。
 
+**启动不了时**：
+
+| 现象 | 原因 | 解决 |
+| --- | --- | --- |
+| PowerShell 报"无法加载文件 …\npm.ps1，因为在此系统上禁止运行脚本" | PowerShell 里的 `npm` 实际运行的是 `npm.ps1`，被执行策略拦下，还没读到 `package.json` | 改用 `npm.cmd start`；或在 cmd / Git Bash 里运行；或执行一次 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+| 报 `EADDRINUSE` | 3000 端口已被占用，常见是开发用的 `npm run server:watch` 还开着 | 关掉占用端口的进程，或在 `.env` 里改 `PORT` |
+
 **开发**：前后端改代码后都会自动生效，需要开两个终端：
 
 ```bash
